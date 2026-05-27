@@ -5,9 +5,11 @@ from pydantic import BaseModel
 
 from app.engine import AssistEngine
 from app.models import TicketEvent
+from app.rag.query_engine import RagQueryEngine
 
-app = FastAPI(title="ContactFlow AI Service", version="0.1.0")
+app = FastAPI(title="ContactFlow AI Service", version="0.2.0")
 engine = AssistEngine()
+rag_engine = RagQueryEngine()
 
 
 class TicketEventRequest(BaseModel):
@@ -17,6 +19,12 @@ class TicketEventRequest(BaseModel):
     title: str
     customer_message: str
     priority: str = "NORMAL"
+
+
+class RagQueryRequest(BaseModel):
+    tenant: str
+    query: str
+    top_k: int = 5
 
 
 @app.get("/health")
@@ -51,3 +59,8 @@ def create_assist(request: TicketEventRequest) -> dict:
         "latencyMs": result.latency_ms,
         "estimatedCostUsd": result.estimated_cost_usd,
     }
+
+
+@app.post("/rag/query")
+def query_rag(request: RagQueryRequest) -> dict:
+    return rag_engine.query(tenant=request.tenant, query=request.query, top_k=request.top_k)

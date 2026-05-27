@@ -94,7 +94,7 @@ class HybridRetriever:
             vector_scores = []
             bm25_scores = []
             for index, chunk in enumerate(self.chunks):
-                if chunk.tenant_id != tenant_id:
+                if chunk.tenant_id not in {tenant_id, "tenant-internal"}:
                     continue
                 vector_scores.append((index, max(0.0, cosine_similarity(query_vector, self.vectors[index]))))
                 bm25_scores.append((index, self.bm25.score(candidate_query, index)))

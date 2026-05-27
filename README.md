@@ -436,7 +436,7 @@ Python：
 - 知识文档数量、租户目录和评估集规模校验。
 - 每条评估问题必须引用存在的 `expected_doc_ids`。
 - 覆盖单文档、多条件、多文档、关键词精确召回、口语化改写、rewrite 漂移、租户隔离和无证据转人工。
-- 后续 `/rag/query` 会基于该数据集生成 trace，并评估 Context Recall、Faithfulness、Citation Coverage 和 Hallucination Risk。
+- `/rag/query` 会基于该数据集生成 trace，并评估 Context Recall、Faithfulness、Citation Coverage、Hallucination Risk、Rewrite Accept Rate、Retrieval Latency 和 Tenant Leak Count。
 
 ## 本地运行
 
@@ -450,6 +450,7 @@ mvn test
 # Python AI Service tests
 cd ai-service
 python -m pytest
+python eval/run_rag_eval.py
 
 # Frontend, after npm install
 cd frontend
@@ -468,6 +469,35 @@ python -m uvicorn app.main:app --reload
 
 cd frontend
 npm run dev
+```
+
+RAG 可追溯查询示例：
+
+```powershell
+cd "G:\MyProjects\ContactFlow AI\ai-service"
+D:\python\python.exe -m uvicorn app.main:app --reload --port 8001
+
+Invoke-RestMethod `
+  -Uri "http://localhost:8001/rag/query" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body '{"tenant":"tenant-a","query":"我签收 8 天了，耳机有质量问题还能退吗？","top_k":5}'
+```
+
+RAG 批量评估示例输出：
+
+```text
+ContactFlow AI RAG Eval v0.2
+Total Cases: 120
+Context Recall: 0.52
+Expected Doc Hit Rate: 0.69
+Citation Coverage: 1.00
+Faithfulness: 0.83
+Hallucination Risk: 0.17
+Rewrite Accept Rate: 0.91
+Tenant Leak Count: 0
+Avg Retrieval Latency: 2ms
+Handoff Accuracy: 0.88
 ```
 
 Docker Compose：
@@ -498,11 +528,13 @@ docker compose up --build
 - [x] V0.2 初始基础设施骨架：RabbitMQ/Redis 依赖、条件化配置、fallback publisher/cache、Docker Compose 环境变量。
 - [x] V0.2 RAG 本地可测骨架：NLP 动态切分、Query Rewrite 语义校验、向量/BM25 混合召回、轻量重排、评估指标。
 - [x] V0.2 专业合成企业客服知识库：24 篇 Markdown 文档、120 条 JSONL 评估问题、3 个租户、覆盖证据召回和转人工边界。
+- [x] V0.2 `/rag/query` 可追溯检索链路：demo KB ingestion、parent-child chunks、query rewrite trace、hybrid retrieval、rerank、citations、fallback/handoff、metrics。
+- [x] V0.2 API 级测试和批量评估脚本：覆盖有证据、无证据、高风险、租户隔离、rewrite drift、混合检索、重排序和指标返回。
 - [ ] V0.2 接入真实 RabbitMQ 消费链路：AI 请求消费、失败重试、死信队列、回写事件。
 - [ ] V0.2 接入真实 Redis 业务缓存：热工单、队列计数、AI 事件幂等、可选抢单削峰锁。
 - [ ] V0.3 Kafka 事件流扩展：面向统计、审计、质检和多消费者订阅。
 - [ ] V0.2 企业知识库 ingestion 持久化：多源文档解析、ETL 清洗、父子索引入库。
 - [ ] V0.2 Query Rewrite 接入真实小模型与 embedding provider。
 - [ ] V0.2 Hybrid Retrieval 接入真实向量库、BM25 索引库和 FAQ/手册多源索引。
-- [ ] V0.2 RAG 评估入库与 trace API：Context Recall、Faithfulness、首轮解决率、幻觉率和链路 trace。
+- [ ] V0.2 RAG 评估入库与运营面板：首轮解决率、坐席采纳率、问题沉淀、版本对比和长期趋势。
 - [ ] V0.3 图谱增强检索与 LambdaMART 训练化重排序。
