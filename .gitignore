@@ -1,0 +1,31 @@
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# Java / Maven
+target/
+.mvn/
+*.class
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Node / Vite
+node_modules/
+dist/
+
+# IDE / OS
+.codex/
+.codex-plugin/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

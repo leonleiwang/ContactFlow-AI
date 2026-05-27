@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:contactflow_flyway;MODE=MySQL;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=5000
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: PUBLIC
+  flyway:
+    enabled: true
+    default-schema: PUBLIC
