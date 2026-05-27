@@ -1,13 +1,29 @@
 from __future__ import annotations
 
+import json
+
 from fastapi import FastAPI
 from pydantic import BaseModel
+from starlette.responses import JSONResponse
 
 from app.engine import AssistEngine
 from app.models import TicketEvent
 from app.rag.query_engine import RagQueryEngine
 
-app = FastAPI(title="ContactFlow AI Service", version="0.2.0")
+
+class Utf8JSONResponse(JSONResponse):
+    media_type = "application/json; charset=utf-8"
+
+    def render(self, content: object) -> bytes:
+        return json.dumps(
+            content,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+
+
+app = FastAPI(title="ContactFlow AI Service", version="0.2.0", default_response_class=Utf8JSONResponse)
 engine = AssistEngine()
 rag_engine = RagQueryEngine()
 

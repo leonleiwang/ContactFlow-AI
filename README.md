@@ -476,12 +476,26 @@ RAG 可追溯查询示例：
 ```powershell
 cd "G:\MyProjects\ContactFlow AI\ai-service"
 D:\python\python.exe -m uvicorn app.main:app --reload --port 8001
+```
+
+Windows PowerShell 验证中文问题时，建议在另一个窗口先切到 UTF-8，并用 `ConvertTo-Json` 生成请求体，避免中文在请求体或控制台显示中被转换成乱码：
+
+```powershell
+chcp 65001
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
+$body = @{
+  tenant = "tenant-a"
+  query = "我签收 8 天了，耳机有质量问题还能退吗？"
+  top_k = 5
+} | ConvertTo-Json -Depth 10
 
 Invoke-RestMethod `
   -Uri "http://localhost:8001/rag/query" `
   -Method Post `
-  -ContentType "application/json" `
-  -Body '{"tenant":"tenant-a","query":"我签收 8 天了，耳机有质量问题还能退吗？","top_k":5}'
+  -ContentType "application/json; charset=utf-8" `
+  -Body $body
 ```
 
 RAG 批量评估示例输出：
@@ -489,14 +503,14 @@ RAG 批量评估示例输出：
 ```text
 ContactFlow AI RAG Eval v0.2
 Total Cases: 120
-Context Recall: 0.52
-Expected Doc Hit Rate: 0.69
+Context Recall: 0.58
+Expected Doc Hit Rate: 0.72
 Citation Coverage: 1.00
-Faithfulness: 0.83
-Hallucination Risk: 0.17
-Rewrite Accept Rate: 0.91
+Faithfulness: 0.67
+Hallucination Risk: 0.33
+Rewrite Accept Rate: 0.89
 Tenant Leak Count: 0
-Avg Retrieval Latency: 2ms
+Avg Retrieval Latency: 3ms
 Handoff Accuracy: 0.88
 ```
 

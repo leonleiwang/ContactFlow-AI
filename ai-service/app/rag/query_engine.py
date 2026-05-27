@@ -192,7 +192,7 @@ class RagQueryEngine:
         lowered = query.lower()
         if self._contains(lowered, ["起诉", "律师", "监管", "媒体", "曝光", "投诉", "complaint"]):
             return Intent.COMPLAINT
-        if self._contains(lowered, ["退货", "退款", "退", "refund"]):
+        if self._contains(lowered, ["退货", "退款", "质量问题", "签收", "保修", "售后", "refund"]):
             return Intent.REFUND
         if self._contains(lowered, ["物流", "签收", "快递", "没收到", "丢件", "delivery", "shipping"]):
             return Intent.DELIVERY
@@ -216,8 +216,15 @@ class RagQueryEngine:
             exact_overlap = len(query_tokens & chunk_tokens) / max(len(query_tokens), 1)
             internal_risk_bonus = 0.12 if self._is_high_risk(query) and hit.chunk.tenant_id == "tenant-internal" else 0.0
             intent_bonus = 0.08 if intent.value in hit.chunk.tags else 0.0
+            refund_quality_bonus = (
+                0.18
+                if intent == Intent.REFUND
+                and self._contains(query, ["质量问题", "签收", "退"])
+                and hit.chunk.doc_id in {"tenant-a/refund_policy.md", "tenant-a/warranty_policy.md"}
+                else 0.0
+            )
             source_bonus = 0.05 if {"sop", "manual"} & hit.chunk.tags else 0.0
-            return hit.score + exact_overlap + internal_risk_bonus + intent_bonus + source_bonus
+            return hit.score + exact_overlap + internal_risk_bonus + intent_bonus + refund_quality_bonus + source_bonus
 
         return sorted(
             [

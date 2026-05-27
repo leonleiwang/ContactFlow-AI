@@ -9,6 +9,7 @@ client = TestClient(app)
 def query(payload: dict) -> dict:
     response = client.post("/rag/query", json=payload)
     assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json; charset=utf-8")
     return response.json()
 
 

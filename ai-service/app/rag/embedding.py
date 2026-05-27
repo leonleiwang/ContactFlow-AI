@@ -6,11 +6,60 @@ import re
 from collections.abc import Iterable
 
 
-TOKEN_PATTERN = re.compile(r"[a-zA-Z0-9_]+|[\u4e00-\u9fff]")
+ASCII_TOKEN_PATTERN = re.compile(r"[a-zA-Z0-9_]+")
+CJK_PATTERN = re.compile(r"[\u4e00-\u9fff]+")
+
+DOMAIN_TERMS = [
+    "退款",
+    "退货",
+    "质量问题",
+    "签收",
+    "保修",
+    "质检",
+    "物流",
+    "快递",
+    "没收到",
+    "丢件",
+    "赔偿",
+    "起诉",
+    "法律",
+    "律师",
+    "监管",
+    "投诉",
+    "媒体",
+    "曝光",
+    "发票",
+    "抬头",
+    "税号",
+    "会员",
+    "终身免费",
+    "免费会员",
+    "跨境",
+    "清关",
+    "关税",
+    "税费",
+    "换货",
+    "型号",
+    "库存",
+    "预售",
+    "定金",
+    "尾款",
+    "优惠券",
+    "补偿",
+    "转人工",
+]
 
 
 def tokenize(text: str) -> list[str]:
-    return [token.lower() for token in TOKEN_PATTERN.findall(text)]
+    lowered = text.lower()
+    tokens = [token.lower() for token in ASCII_TOKEN_PATTERN.findall(lowered)]
+    for term in DOMAIN_TERMS:
+        if term.lower() in lowered:
+            tokens.append(term.lower())
+    for segment in CJK_PATTERN.findall(lowered):
+        tokens.extend(segment[index : index + 2] for index in range(max(len(segment) - 1, 0)))
+        tokens.extend(segment[index : index + 3] for index in range(max(len(segment) - 2, 0)))
+    return tokens
 
 
 class HashingEmbeddingModel:
