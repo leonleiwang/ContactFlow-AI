@@ -1,0 +1,26 @@
+{
+  "name": "ContactFlow Demo Enterprise KB",
+  "version": "0.2",
+  "doc_count": 24,
+  "eval_case_count": 120,
+  "tenants": [
+    "tenant-a",
+    "tenant-b",
+    "tenant-internal"
+  ],
+  "case_distribution": {
+    "single_doc": 25,
+    "multi_condition": 20,
+    "multi_doc": 15,
+    "keyword_exact": 15,
+    "colloquial_rewrite": 15,
+    "rewrite_drift": 10,
+    "tenant_isolation": 10,
+    "no_evidence_handoff": 10
+  },
+  "design_notes": [
+    "Synthetic professional customer-support dataset; no copied vendor policy text.",
+    "Inspired by enterprise help-center QA and enterprise RAG benchmark structures.",
+    "Designed for tenant isolation, traceability, evidence recall, rewrite drift, and handoff evaluation."
+  ]
+}
