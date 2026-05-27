@@ -514,6 +514,31 @@ Avg Retrieval Latency: 3ms
 Handoff Accuracy: 0.88
 ```
 
+这组指标用于评估客服 AI Assist 的 RAG 子系统，而不是完整 Agent 评估。它覆盖检索质量、证据引用、回答忠实度、安全边界、租户隔离和转人工策略；完整 Agent 评估还需要继续加入工具调用正确率、工单处理成功率、多步流程完成率、坐席采纳率、平均处理时长和 CSAT 等业务结果指标。
+
+当前批量结果说明系统已经具备可调用、可追溯、可评估的工程闭环，但不能包装成生产级高准确率 RAG。`Citation Coverage = 1.00`、`Tenant Leak Count = 0`、`Handoff Accuracy = 0.88` 说明证据引用、数据隔离和转人工边界表现较稳；`Context Recall = 0.58`、`Expected Doc Hit Rate = 0.72`、`Faithfulness = 0.67` 和 `Hallucination Risk = 0.33` 说明召回质量、重排序和回答忠实度仍是后续优化项。
+
+手工 demo 覆盖三类面试展示场景：
+
+| 场景 | 预期行为 | 当前结果 |
+| --- | --- | --- |
+| 签收 8 天 + 耳机质量问题 | 命中退款与保修证据，回答保留审核边界 | 命中 `warranty_policy.md`、`refund_policy.md`，`intent=refund` |
+| 起诉 / 赔偿高风险 | 不承诺赔偿，转人工并引用内部 SOP | 命中 `high_risk_complaint_sop.md`、`forbidden_promises.md`，`fallback_reason=high_risk_handoff` |
+| 终身免费会员 | 无证据不编造，进入 fallback | `fallback_reason=no_sufficient_evidence`，只保留转人工/追溯相关内部 SOP 引用 |
+
+后续任务对指标的影响不同：
+
+| 后续任务 | 主要价值 | 是否直接提升 RAG 分数 |
+| --- | --- | --- |
+| 企业知识库 ingestion 持久化、ETL、父子索引入库 | 提升切分稳定性和证据组织质量 | 是 |
+| Query Rewrite 接入真实小模型与 embedding provider | 提升问题改写和语义召回，但需要防漂移 | 是 |
+| 真实向量库 + BM25 / OpenSearch + FAQ/手册多源索引 | 提升召回覆盖和关键词精确命中 | 是 |
+| 更强 rerank、图谱增强检索、LambdaMART | 提升 top-k 质量、多文档推理和 Faithfulness | 是 |
+| RAG 评估入库与运营面板 | 帮助定位失败样本、做版本对比和长期优化 | 间接 |
+| RabbitMQ 消费链路、失败重试、死信队列、回写事件 | 提升异步 AI 任务可靠性和工程可信度 | 否，主要提升企业后端含金量 |
+| Redis 热工单、队列计数、幂等、抢单削峰 | 提升性能、幂等和并发工程能力 | 否，主要提升企业后端含金量 |
+| Kafka 事件流扩展 | 支持审计、质检、统计和多消费者订阅 | 否，适合 V0.3 |
+
 Docker Compose：
 
 ```bash

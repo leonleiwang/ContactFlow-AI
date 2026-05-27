@@ -45,6 +45,13 @@ def test_manual_lifetime_free_membership_uses_no_evidence_fallback() -> None:
     assert result["should_handoff"] is True
     assert result["fallback_reason"] == "no_sufficient_evidence"
     assert "没有找到足够证据" in result["answer"]
+    assert {citation["tenant"] for citation in result["citations"]} <= {"tenant-internal"}
+    assert {citation["doc_id"] for citation in result["citations"]} <= {
+        "tenant-internal/handoff_routing_sop.md",
+        "tenant-internal/agent_assist_trace_sop.md",
+        "tenant-internal/knowledge_update_workflow.md",
+        "tenant-internal/tenant_isolation_policy.md",
+    }
 
 
 def test_manual_tenant_a_query_does_not_recall_tenant_b_policy() -> None:

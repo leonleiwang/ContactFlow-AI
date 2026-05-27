@@ -71,6 +71,8 @@ class RagQueryEngine:
         unsupported_entitlement = self._is_unsupported_entitlement(query)
         evidence_ok = self._has_enough_evidence(reranked_hits) and not unsupported_entitlement
         should_handoff, fallback_reason = self._decide_fallback(high_risk, evidence_ok, citations)
+        if fallback_reason == "no_sufficient_evidence":
+            citations = self._fallback_citations(citations)
         answer = self._compose_answer(query, reranked_hits, should_handoff, fallback_reason)
         answer_claims = self._answer_claims(answer, should_handoff, citations)
 
@@ -303,6 +305,16 @@ class RagQueryEngine:
                 }
             )
         return citations
+
+    @staticmethod
+    def _fallback_citations(citations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        allowed_docs = {
+            "tenant-internal/handoff_routing_sop.md",
+            "tenant-internal/agent_assist_trace_sop.md",
+            "tenant-internal/knowledge_update_workflow.md",
+            "tenant-internal/tenant_isolation_policy.md",
+        }
+        return [citation for citation in citations if citation["doc_id"] in allowed_docs]
 
     def _hit_payload(self, hit: HybridHit) -> dict[str, Any]:
         return {
