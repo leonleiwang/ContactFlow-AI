@@ -79,7 +79,7 @@ class AssistEngine:
         if handoff_reason:
             return Route.HANDOFF, []
         if intent in {Intent.REFUND, Intent.DELIVERY}:
-            hits = self.knowledge_base.search(event.tenant_id, event.customer_message)
+            hits = self.knowledge_base.search(event.tenant_id, event.customer_message, intent=intent)
             return Route.RAG, hits
         return Route.RULE_ONLY, []
 

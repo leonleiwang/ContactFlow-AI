@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.models import KnowledgeChunk
+from app.models import Intent, KnowledgeChunk
+from app.rag.retrieval import HybridRetriever, RetrievalStrategy
 
 
 @dataclass
@@ -12,10 +13,12 @@ class RetrievalHit:
 
 
 class InMemoryKnowledgeBase:
-    """V0.1 只做轻量 RAG mock，但保留 tenant 过滤和证据返回。
+    """Tenant-scoped knowledge base used by the AI assist flow.
 
-    这里故意不让检索器跨租户返回内容：企业知识库首先要保证数据隔离，
-    然后才是召回率和生成效果。
+    V0.2 keeps the store in memory for local tests, while the retrieval path
+    already uses query rewrite, vector recall, BM25 recall, source bonuses and
+    strategy routing. A production store can replace the chunk list without
+    changing the engine contract.
     """
 
     def __init__(self, chunks: list[KnowledgeChunk] | None = None) -> None:
@@ -23,27 +26,31 @@ class InMemoryKnowledgeBase:
             KnowledgeChunk(
                 chunk_id="refund-7d",
                 tenant_id="tenant-a",
-                title="7 天退款政策",
+                title="7 天退货退款政策",
                 text="签收 7 天内且商品未使用，可以申请退款。超过 7 天需要人工审核。",
-                tags={"refund", "policy"},
+                tags={"refund", "policy", "faq"},
+                doc_id="policy-refund",
+                section_path=("售后政策", "退款"),
             ),
             KnowledgeChunk(
                 chunk_id="delivery-delay",
                 tenant_id="tenant-a",
                 title="物流延迟处理",
                 text="物流超过承诺时间 48 小时仍未更新时，坐席应先查询物流轨迹，再给出补偿或升级建议。",
-                tags={"delivery", "sla"},
+                tags={"delivery", "sla", "manual"},
+                doc_id="manual-delivery",
+                section_path=("物流手册", "延迟处理"),
             ),
         ]
+        self._retriever = HybridRetriever(self._chunks)
 
-    def search(self, tenant_id: str, query: str, limit: int = 3) -> list[RetrievalHit]:
-        terms = {term.strip("，。,.!?").lower() for term in query.split() if term.strip()}
-        hits: list[RetrievalHit] = []
-        for chunk in self._chunks:
-            if chunk.tenant_id != tenant_id:
-                continue
-            haystack = f"{chunk.title} {chunk.text} {' '.join(chunk.tags)}".lower()
-            overlap = sum(1 for term in terms if term and term in haystack)
-            if overlap:
-                hits.append(RetrievalHit(chunk=chunk, score=overlap / max(len(terms), 1)))
-        return sorted(hits, key=lambda hit: hit.score, reverse=True)[:limit]
+    def search(
+        self,
+        tenant_id: str,
+        query: str,
+        limit: int = 3,
+        intent: Intent = Intent.GENERAL,
+        strategy: RetrievalStrategy | None = None,
+    ) -> list[RetrievalHit]:
+        hits = self._retriever.retrieve(query, tenant_id=tenant_id, intent=intent, strategy=strategy)
+        return [RetrievalHit(chunk=hit.chunk, score=hit.score) for hit in hits[:limit]]

@@ -480,11 +480,13 @@ docker compose up --build
 - [x] Python AI Service 规则引擎和测试。
 - [x] React 三栏坐席台原型。
 - [x] V0.1.0 工程化文件：Makefile、Dockerfile、docker-compose、CI、LICENSE、`.env.example`。
-- [ ] V0.2 接入真实 RabbitMQ broker：事件发布、消费、重试、死信队列、幂等消费。
-- [ ] V0.2 接入真实 Redis 缓存：热工单、队列计数、AI 事件幂等、可选抢单削峰锁。
+- [x] V0.2 初始基础设施骨架：RabbitMQ/Redis 依赖、条件化配置、fallback publisher/cache、Docker Compose 环境变量。
+- [x] V0.2 RAG 本地可测骨架：NLP 动态切分、Query Rewrite 语义校验、向量/BM25 混合召回、轻量重排、评估指标。
+- [ ] V0.2 接入真实 RabbitMQ 消费链路：AI 请求消费、失败重试、死信队列、回写事件。
+- [ ] V0.2 接入真实 Redis 业务缓存：热工单、队列计数、AI 事件幂等、可选抢单削峰锁。
 - [ ] V0.3 Kafka 事件流扩展：面向统计、审计、质检和多消费者订阅。
-- [ ] V0.2 企业知识库 ingestion：多源文档解析、ETL 清洗、NLP 动态切分、父子索引。
-- [ ] V0.2 Query Rewrite：小模型改写、Embedding 相似度校验、低相似改写丢弃。
-- [ ] V0.2 Hybrid Retrieval：向量召回、BM25、FAQ/手册多源召回、分级重排序。
-- [ ] V0.2 RAG 评估：Context Recall、Faithfulness、首轮解决率、幻觉率和链路 trace。
+- [ ] V0.2 企业知识库 ingestion 持久化：多源文档解析、ETL 清洗、父子索引入库。
+- [ ] V0.2 Query Rewrite 接入真实小模型与 embedding provider。
+- [ ] V0.2 Hybrid Retrieval 接入真实向量库、BM25 索引库和 FAQ/手册多源索引。
+- [ ] V0.2 RAG 评估入库与 trace API：Context Recall、Faithfulness、首轮解决率、幻觉率和链路 trace。
 - [ ] V0.3 图谱增强检索与 LambdaMART 训练化重排序。

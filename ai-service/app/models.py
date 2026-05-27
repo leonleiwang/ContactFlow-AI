@@ -43,6 +43,14 @@ class KnowledgeChunk:
     title: str
     text: str
     tags: set[str] = field(default_factory=set)
+    doc_id: str | None = None
+    section_path: tuple[str, ...] = field(default_factory=tuple)
+    source_uri: str | None = None
+    parent_id: str | None = None
+    effective_from: str | None = None
+    effective_to: str | None = None
+    acl_tags: set[str] = field(default_factory=set)
+    checksum: str | None = None
 
 
 @dataclass(frozen=True)
