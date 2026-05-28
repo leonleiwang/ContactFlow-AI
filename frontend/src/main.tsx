@@ -3,33 +3,42 @@ import { createRoot } from "react-dom/client";
 import {
   Activity,
   AlertTriangle,
+  ArrowUpRight,
   Bot,
   CheckCircle2,
+  ChevronRight,
   Clock3,
   FileText,
   GitBranch,
+  Inbox,
   Layers3,
   Lock,
   MessageSquareText,
   Search,
+  Send,
   ShieldCheck,
+  Sparkles,
   UserCheck
 } from "lucide-react";
 import "./styles.css";
 
 type TicketStatus = "OPEN" | "IN_PROGRESS" | "WAITING_CUSTOMER" | "RESOLVED" | "CLOSED" | "ESCALATED";
 type AiState = "pending" | "completed" | "failed";
+type RightPanelTab = "assist" | "trace" | "evals";
 
 type Ticket = {
   id: string;
   title: string;
   customerName: string;
+  channel: string;
   message: string;
   status: TicketStatus;
   priority: "LOW" | "NORMAL" | "HIGH" | "URGENT";
   assignedAgentId?: string;
   sla: string;
   aiState: AiState;
+  intent: string;
+  risk: "low" | "medium" | "high";
   conflict?: string;
 };
 
@@ -59,6 +68,50 @@ type TraceScenario = {
   };
   traceSteps: string[];
 };
+
+const initialTickets: Ticket[] = [
+  {
+    id: "T-1042",
+    title: "物流超过承诺时间仍未更新",
+    customerName: "林女士",
+    channel: "Web Chat",
+    message: "我的订单已经超过 7 天没到，物流 48 小时没有任何更新。如果今天不能解决，我要投诉。",
+    status: "OPEN",
+    priority: "HIGH",
+    sla: "38m",
+    aiState: "completed",
+    intent: "delivery / complaint",
+    risk: "high"
+  },
+  {
+    id: "T-1041",
+    title: "退款政策咨询",
+    customerName: "周先生",
+    channel: "Email",
+    message: "商品签收后试用了一次，还能不能申请退款？",
+    status: "IN_PROGRESS",
+    priority: "NORMAL",
+    assignedAgentId: "agent-07",
+    sla: "2h 12m",
+    aiState: "pending",
+    intent: "refund",
+    risk: "medium"
+  },
+  {
+    id: "T-1040",
+    title: "发票信息开错",
+    customerName: "陈女士",
+    channel: "Enterprise WeChat",
+    message: "企业发票抬头写错了，需要重新开。",
+    status: "WAITING_CUSTOMER",
+    priority: "LOW",
+    assignedAgentId: "agent-02",
+    sla: "5h 03m",
+    aiState: "failed",
+    intent: "billing",
+    risk: "low"
+  }
+];
 
 const traceScenarios: TraceScenario[] = [
   {
@@ -135,51 +188,17 @@ const traceScenarios: TraceScenario[] = [
   }
 ];
 
-const initialTickets: Ticket[] = [
-  {
-    id: "T-1042",
-    title: "物流超过承诺时间仍未更新",
-    customerName: "林女士",
-    message: "我的订单已经超过 7 天没到，物流 48 小时没有任何更新。如果今天不能解决，我要投诉。",
-    status: "OPEN",
-    priority: "HIGH",
-    sla: "38m",
-    aiState: "completed"
-  },
-  {
-    id: "T-1041",
-    title: "退款政策咨询",
-    customerName: "周先生",
-    message: "商品签收后试用了一次，还能不能申请退款？",
-    status: "IN_PROGRESS",
-    priority: "NORMAL",
-    assignedAgentId: "agent-07",
-    sla: "2h 12m",
-    aiState: "pending"
-  },
-  {
-    id: "T-1040",
-    title: "发票信息开错",
-    customerName: "陈女士",
-    message: "企业发票抬头写错了，需要重新开。",
-    status: "WAITING_CUSTOMER",
-    priority: "LOW",
-    assignedAgentId: "agent-02",
-    sla: "5h 03m",
-    aiState: "failed"
-  }
-];
-
 function App() {
   const [tickets, setTickets] = useState<Ticket[]>(initialTickets);
   const [selectedId, setSelectedId] = useState("T-1042");
+  const [rightTab, setRightTab] = useState<RightPanelTab>("assist");
   const selected = tickets.find((ticket) => ticket.id === selectedId) ?? tickets[0];
 
   const queueStats = useMemo(() => {
     return {
       open: tickets.filter((ticket) => ticket.status === "OPEN").length,
       active: tickets.filter((ticket) => ticket.status === "IN_PROGRESS").length,
-      risk: tickets.filter((ticket) => ticket.priority === "HIGH" || ticket.priority === "URGENT").length
+      risk: tickets.filter((ticket) => ticket.risk === "high").length
     };
   }, [tickets]);
 
@@ -190,7 +209,7 @@ function App() {
         if (ticket.status !== "OPEN") {
           return {
             ...ticket,
-            conflict: `工单当前为 ${ticket.status}，已不能领取。数据库条件更新会返回 0 行，前端展示冲突而不是覆盖状态。`
+            conflict: `工单当前为 ${ticket.status}，已经不能领取。数据库条件更新返回 0 行，前端展示冲突而不是覆盖状态。`
           };
         }
         return {
@@ -234,25 +253,40 @@ function App() {
 
   return (
     <main className="app-shell">
-      <aside className="queue-rail">
+      <aside className="nav-rail">
         <div className="brand-block">
           <div className="brand-mark">CF</div>
           <div>
             <div className="brand-title">ContactFlow AI</div>
-            <div className="brand-subtitle">客服工单坐席台</div>
+            <div className="brand-subtitle">Agent Workspace</div>
           </div>
         </div>
 
+        <nav className="rail-menu" aria-label="Workspace navigation">
+          <button className="is-active"><Inbox size={17} />Inbox</button>
+          <button><Bot size={17} />Copilot</button>
+          <button><Activity size={17} />Evaluations</button>
+          <button><ShieldCheck size={17} />Governance</button>
+        </nav>
+
+        <section className="queue-summary" aria-label="队列概览">
+          <Metric label="Open" value={queueStats.open} />
+          <Metric label="Active" value={queueStats.active} />
+          <Metric label="Risk" value={queueStats.risk} />
+        </section>
+      </aside>
+
+      <section className="inbox-pane">
         <div className="search-box">
           <Search size={16} />
-          <input aria-label="搜索工单" placeholder="搜索工单、客户、意图" />
+          <input aria-label="搜索工单" placeholder="搜索工单、客户、意图或证据" />
         </div>
 
-        <section className="metric-grid" aria-label="队列统计">
-          <Metric label="待领取" value={queueStats.open} tone="blue" />
-          <Metric label="处理中" value={queueStats.active} tone="green" />
-          <Metric label="高风险" value={queueStats.risk} tone="amber" />
-        </section>
+        <div className="queue-filter">
+          <button className="is-active">All</button>
+          <button>Mine</button>
+          <button>Escalated</button>
+        </div>
 
         <nav className="ticket-list" aria-label="工单队列">
           {tickets.map((ticket) => (
@@ -266,19 +300,20 @@ function App() {
                 <StatusBadge status={ticket.status} />
               </div>
               <div className="ticket-title">{ticket.title}</div>
+              <div className="ticket-preview">{ticket.message}</div>
               <div className="row-footer">
-                <span>{ticket.customerName}</span>
-                <span className={ticket.priority === "HIGH" || ticket.priority === "URGENT" ? "sla-hot" : ""}>SLA {ticket.sla}</span>
+                <span>{ticket.customerName} · {ticket.channel}</span>
+                <span className={ticket.risk === "high" ? "risk-text" : ""}>SLA {ticket.sla}</span>
               </div>
             </button>
           ))}
         </nav>
-      </aside>
+      </section>
 
-      <section className="ticket-pane">
+      <section className="workspace-pane">
         <header className="workspace-topbar">
           <div>
-            <div className="eyebrow">当前工单</div>
+            <div className="eyebrow">当前工单 · {selected.id}</div>
             <h1>{selected.title}</h1>
           </div>
           <div className="topbar-actions">
@@ -302,7 +337,7 @@ function App() {
           </div>
         ) : null}
 
-        <div className="detail-grid">
+        <div className="workspace-grid">
           <section className="conversation-panel">
             <div className="section-heading">
               <MessageSquareText size={18} />
@@ -311,9 +346,14 @@ function App() {
             <div className="message-card">
               <div className="message-meta">
                 <strong>{selected.customerName}</strong>
-                <span>{selected.priority}</span>
+                <span>{selected.priority} · {selected.channel}</span>
               </div>
               <p>{selected.message}</p>
+            </div>
+
+            <div className="reply-composer">
+              <input aria-label="回复客户" placeholder="输入给客户的回复，或采纳 Copilot 建议" />
+              <button title="发送回复"><Send size={17} /></button>
             </div>
           </section>
 
@@ -347,15 +387,98 @@ function App() {
         </div>
       </section>
 
-      <aside className="assist-pane">
-        <div className="section-heading">
-          <Bot size={18} />
-          <span>AI Assist</span>
+      <aside className="copilot-pane">
+        <div className="copilot-tabs" role="tablist" aria-label="AI Copilot panels">
+          <button className={rightTab === "assist" ? "is-active" : ""} onClick={() => setRightTab("assist")}>Assist</button>
+          <button className={rightTab === "trace" ? "is-active" : ""} onClick={() => setRightTab("trace")}>Trace</button>
+          <button className={rightTab === "evals" ? "is-active" : ""} onClick={() => setRightTab("evals")}>Evals</button>
         </div>
-        <AiAssist ticket={selected} />
-        <EvidenceTracePanel />
+
+        {rightTab === "assist" ? <AiAssist ticket={selected} /> : null}
+        {rightTab === "trace" ? <EvidenceTracePanel /> : null}
+        {rightTab === "evals" ? <EvalPanel /> : null}
       </aside>
     </main>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="metric-card">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: TicketStatus }) {
+  return <span className={`status-badge status-${status.toLowerCase()}`}>{status}</span>;
+}
+
+function AiAssist({ ticket }: { ticket: Ticket }) {
+  if (ticket.aiState === "pending") {
+    return (
+      <div className="assist-state">
+        <Clock3 size={20} />
+        <strong>AI 分析中</strong>
+        <p>工单创建已经完成，摘要和建议回复通过异步事件生成，不阻塞坐席处理。</p>
+      </div>
+    );
+  }
+
+  if (ticket.aiState === "failed") {
+    return (
+      <div className="assist-state error">
+        <AlertTriangle size={20} />
+        <strong>AI Assist 生成失败</strong>
+        <p>主工单流程保持可用。坐席可以继续处理，后台事件稍后重试。</p>
+        <button>重试分析</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="assist-stack">
+      <section className="assist-hero">
+        <div>
+          <div className="eyebrow">Agent Copilot</div>
+          <h2>建议先安抚客户，再核对物流轨迹</h2>
+        </div>
+        <Sparkles size={20} />
+      </section>
+
+      <div className="assist-card">
+        <div className="assist-card-title">
+          <CheckCircle2 size={17} />
+          <span>摘要</span>
+        </div>
+        <p>客户反馈物流超过承诺时间且存在投诉风险，需要优先核对物流轨迹并给出明确下一步。</p>
+      </div>
+
+      <div className="assist-card">
+        <div className="assist-card-title">
+          <AlertTriangle size={17} />
+          <span>风险与转人工</span>
+        </div>
+        <dl className="assist-kv">
+          <dt>意图</dt>
+          <dd>{ticket.intent}</dd>
+          <dt>SLA</dt>
+          <dd className="risk-text">MEDIUM</dd>
+          <dt>建议</dt>
+          <dd>先安抚客户，再查询物流轨迹；若 48 小时无更新，升级主管。</dd>
+        </dl>
+      </div>
+
+      <div className="assist-card">
+        <div className="assist-card-title">
+          <FileText size={17} />
+          <span>建议回复</span>
+        </div>
+        <p>您好，我们已收到您的反馈。我会先核对物流轨迹，如果超过承诺时间仍无更新，将为您提交升级处理。</p>
+        <div className="citation-box">引用：物流延迟处理 SOP / score 0.78</div>
+      </div>
+    </div>
   );
 }
 
@@ -449,83 +572,42 @@ function EvidenceTracePanel() {
   );
 }
 
+function EvalPanel() {
+  const rows = [
+    ["Context Recall", "0.58", "retrieval gap"],
+    ["Citation Coverage", "1.00", "stable"],
+    ["Faithfulness", "0.67", "needs rerank"],
+    ["Tenant Leak Count", "0", "isolated"],
+    ["Handoff Accuracy", "0.88", "good"]
+  ];
+
+  return (
+    <section className="eval-panel">
+      <div className="trace-heading">
+        <div>
+          <div className="eyebrow">LangSmith-style review</div>
+          <h2>Evaluation runs</h2>
+        </div>
+        <ArrowUpRight size={18} />
+      </div>
+      <div className="eval-table">
+        {rows.map(([metric, value, note]) => (
+          <div className="eval-row" key={metric}>
+            <span>{metric}</span>
+            <strong>{value}</strong>
+            <em>{note}</em>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function MiniMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="mini-metric">
       <span>{label}</span>
       <strong>{value}</strong>
-    </div>
-  );
-}
-
-function Metric({ label, value, tone }: { label: string; value: number; tone: "blue" | "green" | "amber" }) {
-  return (
-    <div className={`metric-card tone-${tone}`}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: TicketStatus }) {
-  return <span className={`status-badge status-${status.toLowerCase()}`}>{status}</span>;
-}
-
-function AiAssist({ ticket }: { ticket: Ticket }) {
-  if (ticket.aiState === "pending") {
-    return (
-      <div className="assist-state">
-        <Clock3 size={20} />
-        <strong>AI 分析中</strong>
-        <p>工单创建已经完成，摘要和建议回复通过异步事件生成，不阻塞坐席处理。</p>
-      </div>
-    );
-  }
-
-  if (ticket.aiState === "failed") {
-    return (
-      <div className="assist-state error">
-        <AlertTriangle size={20} />
-        <strong>AI Assist 生成失败</strong>
-        <p>主工单流程保持可用。坐席可以继续处理，后台事件稍后重试。</p>
-        <button>重试分析</button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="assist-stack">
-      <div className="assist-card">
-        <div className="assist-card-title">
-          <CheckCircle2 size={17} />
-          <span>摘要</span>
-        </div>
-        <p>客户反馈物流超过承诺时间且存在投诉风险，需要优先核对物流轨迹并给出明确下一步。</p>
-      </div>
-
-      <div className="assist-card">
-        <div className="assist-card-title">
-          <AlertTriangle size={17} />
-          <span>风险与转人工</span>
-        </div>
-        <dl className="assist-kv">
-          <dt>意图</dt>
-          <dd>delivery / complaint</dd>
-          <dt>SLA</dt>
-          <dd className="risk-text">MEDIUM</dd>
-          <dt>建议</dt>
-          <dd>先安抚客户，再查询物流轨迹；若 48 小时无更新，升级主管。</dd>
-        </dl>
-      </div>
-
-      <div className="assist-card">
-        <div className="assist-card-title">
-          <FileText size={17} />
-          <span>建议回复</span>
-        </div>
-        <p>您好，我们已收到您的反馈。我会先核对物流轨迹，如果超过承诺时间仍无更新，将为您提交升级处理。</p>
-        <div className="citation-box">引用：物流延迟处理 / score 0.78</div>
-      </div>
     </div>
   );
 }
