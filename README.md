@@ -450,6 +450,7 @@ mvn test
 # Python AI Service tests
 cd ai-service
 python -m pytest
+python eval/build_rag_index.py
 python eval/run_rag_eval.py
 
 # Frontend, after npm install
@@ -506,7 +507,7 @@ Total Cases: 120
 Context Recall: 0.58
 Expected Doc Hit Rate: 0.72
 Citation Coverage: 1.00
-Faithfulness: 0.67
+Faithfulness: 0.68
 Hallucination Risk: 0.33
 Rewrite Accept Rate: 0.89
 Tenant Leak Count: 0
@@ -516,7 +517,7 @@ Handoff Accuracy: 0.88
 
 这组指标用于评估客服 AI Assist 的 RAG 子系统，而不是完整 Agent 评估。它覆盖检索质量、证据引用、回答忠实度、安全边界、租户隔离和转人工策略；完整 Agent 评估还需要继续加入工具调用正确率、工单处理成功率、多步流程完成率、坐席采纳率、平均处理时长和 CSAT 等业务结果指标。
 
-当前批量结果说明系统已经具备可调用、可追溯、可评估的工程闭环，但检索效果不是“优秀”，后续应通过真实向量库、BM25/OpenSearch、父子索引、rerank 和评估闭环继续提升。`Citation Coverage = 1.00`、`Tenant Leak Count = 0`、`Handoff Accuracy = 0.88` 说明证据引用、数据隔离和转人工边界表现较稳；`Context Recall = 0.58`、`Expected Doc Hit Rate = 0.72`、`Faithfulness = 0.67` 和 `Hallucination Risk = 0.33` 说明召回质量、重排序和回答忠实度仍是后续优化项。
+当前批量结果说明系统已经具备可调用、可追溯、可评估的工程闭环，但检索效果不是“优秀”，后续应通过真实向量库、BM25/OpenSearch、父子索引、rerank 和评估闭环继续提升。`Citation Coverage = 1.00`、`Tenant Leak Count = 0`、`Handoff Accuracy = 0.88` 说明证据引用、数据隔离和转人工边界表现较稳；`Context Recall = 0.58`、`Expected Doc Hit Rate = 0.72`、`Faithfulness = 0.68` 和 `Hallucination Risk = 0.33` 说明召回质量、重排序和回答忠实度仍是后续优化项。
 
 手工 demo 覆盖三类面试展示场景：
 
@@ -571,10 +572,11 @@ docker compose up --build
 - [x] V0.2 前端 RAG Evidence Trace 面板：展示三类手工 demo、intent、fallback、metrics、citations 和 trace steps。
 - [x] V0.2 RabbitMQ 回写链路：`ai.assist.completed` 完成队列、失败重试、死信队列、AI Assist 幂等落库和审计事件。
 - [x] V0.2 Redis AI 事件幂等标记：`ai_event:{sourceEventId}` 短期去重，数据库唯一键仍是最终事实来源。
-- [ ] V0.2 Redis 业务缓存深化：热工单、队列计数、AI Assist 汇总缓存、可选抢单削峰锁。
+- [x] V0.2 Redis 业务缓存深化：热工单、队列计数、AI Assist 汇总缓存、可选抢单削峰锁，MySQL 条件更新仍是抢单最终事实来源。
 - [ ] V0.3 Kafka 事件流扩展：面向统计、审计、质检和多消费者订阅。
-- [ ] V0.2 企业知识库 ingestion 持久化：多源文档解析、ETL 清洗、父子索引入库。
-- [ ] V0.2 Query Rewrite 接入真实小模型与 embedding provider。
-- [ ] V0.2 Hybrid Retrieval 接入真实向量库、BM25 索引库和 FAQ/手册多源索引。
-- [ ] V0.2 RAG 评估入库与运营面板：首轮解决率、坐席采纳率、问题沉淀、版本对比和长期趋势。
+- [x] V0.2 企业知识库 ingestion 持久化：Markdown 文档解析、ETL 元数据、父子 chunk 索引 JSONL 与 manifest 落盘。
+- [x] V0.2 RAG 评估报告落盘：120 cases 汇总指标、case 级定位数据和 `latest_report.json`。
+- [ ] V0.3 Query Rewrite 接入真实小模型与 embedding provider。
+- [ ] V0.3 Hybrid Retrieval 接入真实向量库、BM25 索引库和 FAQ/手册多源索引。
+- [ ] V0.3 RAG 评估入库与运营面板：首轮解决率、坐席采纳率、问题沉淀、版本对比和长期趋势。
 - [ ] V0.3 图谱增强检索与 LambdaMART 训练化重排序。

@@ -1,0 +1,38 @@
+{
+  "chunk_count": 72,
+  "doc_count": 24,
+  "doc_ids": [
+    "tenant-a/coupon_compensation_policy.md",
+    "tenant-a/delivery_delay_sop.md",
+    "tenant-a/exchange_policy.md",
+    "tenant-a/invoice_policy.md",
+    "tenant-a/lost_package_sop.md",
+    "tenant-a/preorder_policy.md",
+    "tenant-a/refund_policy.md",
+    "tenant-a/warranty_policy.md",
+    "tenant-b/address_change_policy.md",
+    "tenant-b/cross_border_refund_policy.md",
+    "tenant-b/cross_border_shipping_sop.md",
+    "tenant-b/custom_home_goods_policy.md",
+    "tenant-b/damaged_home_goods_sop.md",
+    "tenant-b/size_exchange_policy.md",
+    "tenant-b/subscription_billing_policy.md",
+    "tenant-b/tax_duty_policy.md",
+    "tenant-internal/agent_assist_trace_sop.md",
+    "tenant-internal/forbidden_promises.md",
+    "tenant-internal/handoff_routing_sop.md",
+    "tenant-internal/high_risk_complaint_sop.md",
+    "tenant-internal/knowledge_update_workflow.md",
+    "tenant-internal/outdated_policy_conflict.md",
+    "tenant-internal/rag_evaluation_guideline.md",
+    "tenant-internal/tenant_isolation_policy.md"
+  ],
+  "format": "contactflow-rag-chunks-jsonl",
+  "path": "index/chunks.jsonl",
+  "tenants": [
+    "tenant-a",
+    "tenant-b",
+    "tenant-internal"
+  ],
+  "version": "0.2.0"
+}

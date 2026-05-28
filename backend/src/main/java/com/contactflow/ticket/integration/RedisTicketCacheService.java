@@ -28,6 +28,19 @@ public class RedisTicketCacheService implements TicketCacheService {
     }
 
     @Override
+    public long increment(String key, long delta, Duration ttl) {
+        Long value = redisTemplate.opsForValue().increment(key, delta);
+        redisTemplate.expire(key, ttl);
+        return value == null ? 0L : value;
+    }
+
+    @Override
+    public boolean setIfAbsent(String key, String value, Duration ttl) {
+        Boolean stored = redisTemplate.opsForValue().setIfAbsent(key, value, ttl);
+        return Boolean.TRUE.equals(stored);
+    }
+
+    @Override
     public void evict(String key) {
         redisTemplate.delete(key);
     }

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -14,9 +16,13 @@ def average(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0.0
 
 
-def main() -> None:
-    engine = RagQueryEngine()
-    cases = load_eval_cases()
+def run_eval(
+    dataset_root: Path | None = None,
+    report_path: Path | None = None,
+    include_case_results: bool = True,
+) -> dict[str, Any]:
+    engine = RagQueryEngine(dataset_root=dataset_root)
+    cases = load_eval_cases(dataset_root=dataset_root)
 
     context_recall: list[float] = []
     faithfulness: list[float] = []
@@ -27,6 +33,7 @@ def main() -> None:
     handoff_matches = 0
     tenant_leak_count = 0
     expected_doc_hit_rate: list[float] = []
+    case_results: list[dict[str, Any]] = []
 
     for case in cases:
         result = engine.query(
@@ -45,20 +52,68 @@ def main() -> None:
         retrieval_latency.append(metrics["retrieval_latency_ms"])
         tenant_leak_count += metrics["tenant_leak_count"]
         expected_doc_hit_rate.append(metrics.get("expected_doc_hit_rate", 0.0))
-        if bool(result["should_handoff"]) == bool(case["should_handoff"]):
+        handoff_matched = bool(result["should_handoff"]) == bool(case["should_handoff"])
+        if handoff_matched:
             handoff_matches += 1
+        if include_case_results:
+            case_results.append(
+                {
+                    "id": case["id"],
+                    "tenant": case["tenant"],
+                    "should_handoff": result["should_handoff"],
+                    "expected_should_handoff": case["should_handoff"],
+                    "handoff_matched": handoff_matched,
+                    "fallback_reason": result["fallback_reason"],
+                    "citation_doc_ids": [citation["doc_id"] for citation in result["citations"]],
+                    "expected_doc_ids": case["expected_doc_ids"],
+                    "metrics": metrics,
+                }
+            )
+
+    summary = {
+        "total_cases": len(cases),
+        "context_recall": round(average(context_recall), 4),
+        "expected_doc_hit_rate": round(average(expected_doc_hit_rate), 4),
+        "citation_coverage": round(average(citation_coverage), 4),
+        "faithfulness": round(average(faithfulness), 4),
+        "hallucination_risk": round(average(hallucination_risk), 4),
+        "rewrite_accept_rate": round(average(rewrite_accept_rate), 4),
+        "tenant_leak_count": tenant_leak_count,
+        "avg_retrieval_latency_ms": round(average(retrieval_latency), 2),
+        "handoff_accuracy": round(handoff_matches / len(cases), 4) if cases else 0.0,
+    }
+    report = {
+        "version": "0.2.0",
+        "dataset": "contactflow_demo_kb_v0.2",
+        "summary": summary,
+        "cases": case_results,
+    }
+
+    target_report = report_path
+    if target_report is None and dataset_root is None:
+        target_report = engine.dataset_root / "eval" / "latest_report.json"
+    if target_report:
+        target_report.parent.mkdir(parents=True, exist_ok=True)
+        target_report.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    return report
+
+
+def main() -> None:
+    report = run_eval()
+    summary = report["summary"]
 
     print("ContactFlow AI RAG Eval v0.2")
-    print(f"Total Cases: {len(cases)}")
-    print(f"Context Recall: {average(context_recall):.2f}")
-    print(f"Expected Doc Hit Rate: {average(expected_doc_hit_rate):.2f}")
-    print(f"Citation Coverage: {average(citation_coverage):.2f}")
-    print(f"Faithfulness: {average(faithfulness):.2f}")
-    print(f"Hallucination Risk: {average(hallucination_risk):.2f}")
-    print(f"Rewrite Accept Rate: {average(rewrite_accept_rate):.2f}")
-    print(f"Tenant Leak Count: {tenant_leak_count}")
-    print(f"Avg Retrieval Latency: {average(retrieval_latency):.0f}ms")
-    print(f"Handoff Accuracy: {handoff_matches / len(cases):.2f}")
+    print(f"Total Cases: {summary['total_cases']}")
+    print(f"Context Recall: {summary['context_recall']:.2f}")
+    print(f"Expected Doc Hit Rate: {summary['expected_doc_hit_rate']:.2f}")
+    print(f"Citation Coverage: {summary['citation_coverage']:.2f}")
+    print(f"Faithfulness: {summary['faithfulness']:.2f}")
+    print(f"Hallucination Risk: {summary['hallucination_risk']:.2f}")
+    print(f"Rewrite Accept Rate: {summary['rewrite_accept_rate']:.2f}")
+    print(f"Tenant Leak Count: {summary['tenant_leak_count']}")
+    print(f"Avg Retrieval Latency: {summary['avg_retrieval_latency_ms']:.0f}ms")
+    print(f"Handoff Accuracy: {summary['handoff_accuracy']:.2f}")
 
 
 if __name__ == "__main__":

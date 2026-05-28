@@ -8,5 +8,13 @@ public interface TicketCacheService {
 
     void put(String key, String value, Duration ttl);
 
+    default long increment(String key, long delta, Duration ttl) {
+        return 0L;
+    }
+
+    default boolean setIfAbsent(String key, String value, Duration ttl) {
+        return true;
+    }
+
     void evict(String key);
 }

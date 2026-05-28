@@ -13,7 +13,7 @@ public class NoopPublisherConfig {
         return new TicketDomainEventPublisher() {
             @Override
             public void publish(String eventType, Map<String, Object> payload) {
-                // 测试聚焦业务状态，不依赖真实 MQ。
+                // Business tests do not depend on a real message broker.
             }
         };
     }
