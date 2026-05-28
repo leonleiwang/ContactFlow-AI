@@ -4,6 +4,8 @@ import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.TopicExchange;
+import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -29,7 +31,27 @@ public class RabbitEventConfiguration {
     }
 
     @Bean
+    Queue aiAssistCompletedQueue(RabbitEventProperties properties) {
+        return QueueBuilderFactory.durableWithDlq(properties.getAiAssistCompletedQueue(), properties.getAiAssistCompletedDlq());
+    }
+
+    @Bean
+    Queue aiAssistCompletedDeadLetterQueue(RabbitEventProperties properties) {
+        return new Queue(properties.getAiAssistCompletedDlq(), true);
+    }
+
+    @Bean
     Binding aiAssistBinding(Queue aiAssistQueue, TopicExchange ticketEventsExchange, RabbitEventProperties properties) {
         return BindingBuilder.bind(aiAssistQueue).to(ticketEventsExchange).with(properties.getAiAssistRoutingKey());
+    }
+
+    @Bean
+    Binding aiAssistCompletedBinding(Queue aiAssistCompletedQueue, TopicExchange ticketEventsExchange, RabbitEventProperties properties) {
+        return BindingBuilder.bind(aiAssistCompletedQueue).to(ticketEventsExchange).with(properties.getAiAssistCompletedRoutingKey());
+    }
+
+    @Bean
+    MessageConverter rabbitJsonMessageConverter() {
+        return new Jackson2JsonMessageConverter();
     }
 }

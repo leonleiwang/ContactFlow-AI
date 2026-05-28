@@ -9,6 +9,9 @@ public class RabbitEventProperties {
     private String aiAssistRoutingKey = "ticket.created";
     private String aiAssistQueue = "ai.assist.request";
     private String aiAssistDlq = "ai.assist.dlq";
+    private String aiAssistCompletedRoutingKey = "ai.assist.completed";
+    private String aiAssistCompletedQueue = "ai.assist.completed";
+    private String aiAssistCompletedDlq = "ai.assist.completed.dlq";
 
     public boolean isEnabled() {
         return enabled;
@@ -48,5 +51,29 @@ public class RabbitEventProperties {
 
     public void setAiAssistDlq(String aiAssistDlq) {
         this.aiAssistDlq = aiAssistDlq;
+    }
+
+    public String getAiAssistCompletedRoutingKey() {
+        return aiAssistCompletedRoutingKey;
+    }
+
+    public void setAiAssistCompletedRoutingKey(String aiAssistCompletedRoutingKey) {
+        this.aiAssistCompletedRoutingKey = aiAssistCompletedRoutingKey;
+    }
+
+    public String getAiAssistCompletedQueue() {
+        return aiAssistCompletedQueue;
+    }
+
+    public void setAiAssistCompletedQueue(String aiAssistCompletedQueue) {
+        this.aiAssistCompletedQueue = aiAssistCompletedQueue;
+    }
+
+    public String getAiAssistCompletedDlq() {
+        return aiAssistCompletedDlq;
+    }
+
+    public void setAiAssistCompletedDlq(String aiAssistCompletedDlq) {
+        this.aiAssistCompletedDlq = aiAssistCompletedDlq;
     }
 }

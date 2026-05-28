@@ -11,6 +11,14 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+  rabbitmq:
+    listener:
+      simple:
+        retry:
+          enabled: ${SPRING_RABBITMQ_LISTENER_SIMPLE_RETRY_ENABLED:true}
+          max-attempts: ${SPRING_RABBITMQ_LISTENER_SIMPLE_RETRY_MAX_ATTEMPTS:3}
+          initial-interval: ${SPRING_RABBITMQ_LISTENER_SIMPLE_RETRY_INITIAL_INTERVAL:1000}
+          multiplier: ${SPRING_RABBITMQ_LISTENER_SIMPLE_RETRY_MULTIPLIER:2}
   data:
     redis:
       repositories:
@@ -31,6 +39,9 @@ contactflow:
       ai-assist-routing-key: ${CONTACTFLOW_RABBIT_AI_ASSIST_ROUTING_KEY:ticket.created}
       ai-assist-queue: ${CONTACTFLOW_RABBIT_AI_ASSIST_QUEUE:ai.assist.request}
       ai-assist-dlq: ${CONTACTFLOW_RABBIT_AI_ASSIST_DLQ:ai.assist.dlq}
+      ai-assist-completed-routing-key: ${CONTACTFLOW_RABBIT_AI_ASSIST_COMPLETED_ROUTING_KEY:ai.assist.completed}
+      ai-assist-completed-queue: ${CONTACTFLOW_RABBIT_AI_ASSIST_COMPLETED_QUEUE:ai.assist.completed}
+      ai-assist-completed-dlq: ${CONTACTFLOW_RABBIT_AI_ASSIST_COMPLETED_DLQ:ai.assist.completed.dlq}
   redis:
     enabled: ${CONTACTFLOW_REDIS_ENABLED:false}
     ticket-cache-ttl-seconds: ${CONTACTFLOW_TICKET_CACHE_TTL_SECONDS:300}

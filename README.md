@@ -516,7 +516,7 @@ Handoff Accuracy: 0.88
 
 这组指标用于评估客服 AI Assist 的 RAG 子系统，而不是完整 Agent 评估。它覆盖检索质量、证据引用、回答忠实度、安全边界、租户隔离和转人工策略；完整 Agent 评估还需要继续加入工具调用正确率、工单处理成功率、多步流程完成率、坐席采纳率、平均处理时长和 CSAT 等业务结果指标。
 
-当前批量结果说明系统已经具备可调用、可追溯、可评估的工程闭环，但不能包装成生产级高准确率 RAG。`Citation Coverage = 1.00`、`Tenant Leak Count = 0`、`Handoff Accuracy = 0.88` 说明证据引用、数据隔离和转人工边界表现较稳；`Context Recall = 0.58`、`Expected Doc Hit Rate = 0.72`、`Faithfulness = 0.67` 和 `Hallucination Risk = 0.33` 说明召回质量、重排序和回答忠实度仍是后续优化项。
+当前批量结果说明系统已经具备可调用、可追溯、可评估的工程闭环，但检索效果不是“优秀”，后续应通过真实向量库、BM25/OpenSearch、父子索引、rerank 和评估闭环继续提升。`Citation Coverage = 1.00`、`Tenant Leak Count = 0`、`Handoff Accuracy = 0.88` 说明证据引用、数据隔离和转人工边界表现较稳；`Context Recall = 0.58`、`Expected Doc Hit Rate = 0.72`、`Faithfulness = 0.67` 和 `Hallucination Risk = 0.33` 说明召回质量、重排序和回答忠实度仍是后续优化项。
 
 手工 demo 覆盖三类面试展示场景：
 
@@ -563,14 +563,15 @@ docker compose up --build
 - [x] Java 测试用例。
 - [x] Python AI Service 规则引擎和测试。
 - [x] React 三栏坐席台原型。
-- [x] V0.1.0 工程化文件：Makefile、Dockerfile、docker-compose、CI、LICENSE、`.env.example`。
 - [x] V0.2 初始基础设施骨架：RabbitMQ/Redis 依赖、条件化配置、fallback publisher/cache、Docker Compose 环境变量。
 - [x] V0.2 RAG 本地可测骨架：NLP 动态切分、Query Rewrite 语义校验、向量/BM25 混合召回、轻量重排、评估指标。
 - [x] V0.2 专业合成企业客服知识库：24 篇 Markdown 文档、120 条 JSONL 评估问题、3 个租户、覆盖证据召回和转人工边界。
 - [x] V0.2 `/rag/query` 可追溯检索链路：demo KB ingestion、parent-child chunks、query rewrite trace、hybrid retrieval、rerank、citations、fallback/handoff、metrics。
 - [x] V0.2 API 级测试和批量评估脚本：覆盖有证据、无证据、高风险、租户隔离、rewrite drift、混合检索、重排序和指标返回。
-- [ ] V0.2 接入真实 RabbitMQ 消费链路：AI 请求消费、失败重试、死信队列、回写事件。
-- [ ] V0.2 接入真实 Redis 业务缓存：热工单、队列计数、AI 事件幂等、可选抢单削峰锁。
+- [x] V0.2 前端 RAG Evidence Trace 面板：展示三类手工 demo、intent、fallback、metrics、citations 和 trace steps。
+- [x] V0.2 RabbitMQ 回写链路：`ai.assist.completed` 完成队列、失败重试、死信队列、AI Assist 幂等落库和审计事件。
+- [x] V0.2 Redis AI 事件幂等标记：`ai_event:{sourceEventId}` 短期去重，数据库唯一键仍是最终事实来源。
+- [ ] V0.2 Redis 业务缓存深化：热工单、队列计数、AI Assist 汇总缓存、可选抢单削峰锁。
 - [ ] V0.3 Kafka 事件流扩展：面向统计、审计、质检和多消费者订阅。
 - [ ] V0.2 企业知识库 ingestion 持久化：多源文档解析、ETL 清洗、父子索引入库。
 - [ ] V0.2 Query Rewrite 接入真实小模型与 embedding provider。

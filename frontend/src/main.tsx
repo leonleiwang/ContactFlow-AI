@@ -1,6 +1,20 @@
 import React, { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { AlertTriangle, Bot, CheckCircle2, Clock3, FileText, Lock, MessageSquareText, Search, UserCheck } from "lucide-react";
+import {
+  Activity,
+  AlertTriangle,
+  Bot,
+  CheckCircle2,
+  Clock3,
+  FileText,
+  GitBranch,
+  Layers3,
+  Lock,
+  MessageSquareText,
+  Search,
+  ShieldCheck,
+  UserCheck
+} from "lucide-react";
 import "./styles.css";
 
 type TicketStatus = "OPEN" | "IN_PROGRESS" | "WAITING_CUSTOMER" | "RESOLVED" | "CLOSED" | "ESCALATED";
@@ -18,6 +32,108 @@ type Ticket = {
   aiState: AiState;
   conflict?: string;
 };
+
+type TraceScenario = {
+  id: string;
+  label: string;
+  question: string;
+  intent: string;
+  strategy: string;
+  shouldHandoff: boolean;
+  fallbackReason: string | null;
+  answer: string;
+  citations: Array<{
+    docId: string;
+    title: string;
+    score: number;
+    tenant: string;
+  }>;
+  metrics: {
+    contextRecall: number;
+    citationCoverage: number;
+    faithfulness: number;
+    hallucinationRisk: number;
+    tenantLeakCount: number;
+    handoffAccuracy: number;
+    retrievalLatencyMs: number;
+  };
+  traceSteps: string[];
+};
+
+const traceScenarios: TraceScenario[] = [
+  {
+    id: "refund-quality",
+    label: "退款质检",
+    question: "我签收 8 天了，耳机有质量问题还能退吗？",
+    intent: "refund",
+    strategy: "deep hybrid",
+    shouldHandoff: false,
+    fallbackReason: null,
+    answer: "命中保修与退款政策，回答保留主管审核边界，不直接承诺退款。",
+    citations: [
+      { docId: "tenant-a/warranty_policy.md", title: "与退款关系", score: 1.1162, tenant: "tenant-a" },
+      { docId: "tenant-a/refund_policy.md", title: "标准规则", score: 1.0772, tenant: "tenant-a" }
+    ],
+    metrics: {
+      contextRecall: 0.58,
+      citationCoverage: 1,
+      faithfulness: 0.67,
+      hallucinationRisk: 0.33,
+      tenantLeakCount: 0,
+      handoffAccuracy: 0.88,
+      retrievalLatencyMs: 3
+    },
+    traceSteps: ["UTF-8 query accepted", "intent=refund", "BM25 + vector recall", "rerank top evidence", "answer with citations"]
+  },
+  {
+    id: "high-risk",
+    label: "高风险",
+    question: "你们必须赔我 5000，不然我起诉。",
+    intent: "complaint",
+    strategy: "risk-first deep",
+    shouldHandoff: true,
+    fallbackReason: "high_risk_handoff",
+    answer: "识别法律与赔偿风险，只给坐席处理建议，不自动承诺赔偿或处理结果。",
+    citations: [
+      { docId: "tenant-internal/high_risk_complaint_sop.md", title: "高风险识别", score: 0.4753, tenant: "tenant-internal" },
+      { docId: "tenant-internal/forbidden_promises.md", title: "禁止表达", score: 0.4229, tenant: "tenant-internal" }
+    ],
+    metrics: {
+      contextRecall: 0.58,
+      citationCoverage: 1,
+      faithfulness: 0.67,
+      hallucinationRisk: 0.33,
+      tenantLeakCount: 0,
+      handoffAccuracy: 0.88,
+      retrievalLatencyMs: 3
+    },
+    traceSteps: ["risk keywords matched", "intent=complaint", "internal SOP recall", "handoff required", "no compensation promise"]
+  },
+  {
+    id: "no-evidence",
+    label: "无证据",
+    question: "你们能不能给我终身免费会员？",
+    intent: "billing",
+    strategy: "fallback guarded",
+    shouldHandoff: true,
+    fallbackReason: "no_sufficient_evidence",
+    answer: "知识库没有足够证据支持确定回答，进入人工核查和知识库补充池。",
+    citations: [
+      { docId: "tenant-internal/handoff_routing_sop.md", title: "转人工条件", score: 0.4259, tenant: "tenant-internal" },
+      { docId: "tenant-internal/agent_assist_trace_sop.md", title: "追溯要求", score: 0.3761, tenant: "tenant-internal" }
+    ],
+    metrics: {
+      contextRecall: 0.58,
+      citationCoverage: 1,
+      faithfulness: 0.67,
+      hallucinationRisk: 0.33,
+      tenantLeakCount: 0,
+      handoffAccuracy: 0.88,
+      retrievalLatencyMs: 3
+    },
+    traceSteps: ["unsupported entitlement detected", "weak business evidence removed", "fallback SOP retained", "handoff suggested", "knowledge gap logged"]
+  }
+];
 
 const initialTickets: Ticket[] = [
   {
@@ -237,8 +353,108 @@ function App() {
           <span>AI Assist</span>
         </div>
         <AiAssist ticket={selected} />
+        <EvidenceTracePanel />
       </aside>
     </main>
+  );
+}
+
+function EvidenceTracePanel() {
+  const [activeId, setActiveId] = useState(traceScenarios[0].id);
+  const active = traceScenarios.find((scenario) => scenario.id === activeId) ?? traceScenarios[0];
+
+  return (
+    <section className="trace-panel" aria-label="RAG Evidence Trace">
+      <div className="trace-heading">
+        <div>
+          <div className="eyebrow">RAG Evidence Trace</div>
+          <h2>证据链路</h2>
+        </div>
+        <ShieldCheck size={18} />
+      </div>
+
+      <div className="trace-tabs" role="tablist" aria-label="手工验证场景">
+        {traceScenarios.map((scenario) => (
+          <button
+            key={scenario.id}
+            className={scenario.id === active.id ? "is-active" : ""}
+            onClick={() => setActiveId(scenario.id)}
+            type="button"
+          >
+            {scenario.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="trace-question">
+        <span>Query</span>
+        <p>{active.question}</p>
+      </div>
+
+      <dl className="trace-kv">
+        <dt>Intent</dt>
+        <dd>{active.intent}</dd>
+        <dt>Strategy</dt>
+        <dd>{active.strategy}</dd>
+        <dt>Handoff</dt>
+        <dd className={active.shouldHandoff ? "risk-text" : ""}>{active.shouldHandoff ? "required" : "not required"}</dd>
+        <dt>Fallback</dt>
+        <dd>{active.fallbackReason ?? "none"}</dd>
+      </dl>
+
+      <div className="trace-answer">{active.answer}</div>
+
+      <div className="metric-row" aria-label="RAG 批量评估指标">
+        <MiniMetric label="Recall" value={active.metrics.contextRecall.toFixed(2)} />
+        <MiniMetric label="Cite" value={active.metrics.citationCoverage.toFixed(2)} />
+        <MiniMetric label="Faith" value={active.metrics.faithfulness.toFixed(2)} />
+        <MiniMetric label="Leak" value={String(active.metrics.tenantLeakCount)} />
+      </div>
+
+      <div className="trace-subsection">
+        <div className="trace-subtitle">
+          <Layers3 size={15} />
+          <span>Citations</span>
+        </div>
+        <div className="citation-list">
+          {active.citations.map((citation) => (
+            <div className="citation-row" key={`${active.id}-${citation.docId}-${citation.title}`}>
+              <div>
+                <strong>{citation.title}</strong>
+                <span>{citation.docId}</span>
+              </div>
+              <code>{citation.score.toFixed(4)}</code>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="trace-subsection">
+        <div className="trace-subtitle">
+          <GitBranch size={15} />
+          <span>Trace</span>
+        </div>
+        <ol className="trace-steps">
+          {active.traceSteps.map((step) => (
+            <li key={`${active.id}-${step}`}>{step}</li>
+          ))}
+        </ol>
+      </div>
+
+      <div className="trace-footnote">
+        <Activity size={14} />
+        <span>120 cases · latency {active.metrics.retrievalLatencyMs}ms · handoff accuracy {active.metrics.handoffAccuracy.toFixed(2)}</span>
+      </div>
+    </section>
+  );
+}
+
+function MiniMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="mini-metric">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
 
