@@ -4,6 +4,10 @@ ContactFlow AI 是一个面向企业客服与工单处理场景的 AI Contact Ce
 
 项目不是单纯的 AI Chatbot 和 RAG 企业知识库，而是将 AI 能力嵌入真实客服工单流程：Java 服务负责工单状态机、并发领取、审计日志、幂等控制和业务一致性；Python AI Service 负责意图识别、转人工评估、RAG 检索、风险判断和建议回复；Redis 与 RabbitMQ / Kafka 用于缓存、幂等、事件解耦和异步处理；React 前端提供面向坐席的三栏工作台，用于展示工单详情、AI Assist、SLA 风险和处理状态。
 
+**当前版本：V0.2.0**
+
+V0.2 在 V0.1 工单闭环之上，补齐了更接近企业 SaaS 的工程能力：RabbitMQ AI Assist 回写链路、Redis 热数据缓存与幂等标记、企业知识库 ingestion 持久化、可追溯 RAG 查询、批量评估报告以及前端 RAG Evidence Trace 面板。当前仓库主页展示的是 V0.2 代码与文档，V0.1 内容作为项目演进历史保留。
+
 在 V0.2 中，项目进一步扩展企业知识库 RAG 能力，重点从“能问答”升级到“可运营、可评估、可追溯”的知识检索系统：支持基于 Markdown / 段落结构和 NLP 句子边界的动态切分、token budget 与 overlap 控制、父子索引、Query Rewrite 语义校验、向量检索 + BM25 + FAQ / 手册多路召回、轻量重排序、证据引用、低置信转人工，以及 Context Recall、Faithfulness、幻觉率、Rewrite Accept Rate 和 Retrieval Latency 等评估指标。
 
 该项目关注的核心问题是：如何在企业客服场景中，让大模型既能辅助坐席提升处理效率，又不直接越权修改业务事实；如何通过异步架构、证据约束、成本路由、风险检查和人工确认机制，将 AI 从“聊天能力”落到可控、可追踪、可评估的业务流程中。
@@ -18,9 +22,21 @@ ContactFlow AI 是一个面向企业客服与工单处理场景的 AI Contact Ce
 - 用 React 构建坐席工作台，而不是营销型 AI 页面。
 - 用可落地的企业知识库 RAG 设计补齐多源异构数据、ETL、语义切分、混合检索、重排序、幻觉控制、权限隔离和反馈闭环。
 
-## V0.1 范围
+## 版本时间线
 
-V0.1 只做一个高价值闭环：
+### V0.2 当前版本
+
+V0.2 的重点是把 V0.1 的业务闭环升级为“可运行、可追踪、可评估”的企业客服 AI 原型：
+
+- RabbitMQ 接入 `ai.assist.completed` 回写链路，支持失败重试、死信队列、AI Assist 幂等落库和审计事件。
+- Redis 接入热工单、队列计数、AI Assist 汇总缓存、短期幂等标记和可选抢单削峰锁，但业务事实仍以 MySQL 为准。
+- 企业知识库从 RAG mock 升级为本地可评估链路：Markdown ingestion、父子 chunk、混合召回、轻量重排、证据引用和低置信转人工。
+- 新增 24 篇合成企业客服知识文档、120 条 JSONL 评估问题、批量评估脚本和 `latest_report.json`，用于说明检索质量、幻觉风险和租户隔离边界。
+- React 坐席台新增 RAG Evidence Trace 面板，展示 intent、fallback、metrics、citations 和 trace steps，便于面试或 demo 时讲清楚 AI 不是黑盒。
+
+### V0.1 基础闭环
+
+V0.1 只做一个高价值闭环，作为后续版本的业务底座：
 
 > 工单创建后，Java 服务写入 MySQL 并发布 `ticket.created` 事件；Python AI Service 异步生成摘要、意图、SLA 风险、转人工建议和回复建议；Java 服务持久化 AI Assist；React 坐席台展示工单、AI Assist 和状态流转按钮。
 
@@ -37,9 +53,9 @@ V0.1 只做一个高价值闭环：
 | --- | --- | --- |
 | 后端业务核心 | Java 17, Spring Boot 3, Spring Data JPA | 工单、状态机、并发抢单、审计、API 合同 |
 | 数据库 | MySQL, Flyway | 业务事实、版本号、事件日志、AI Assist 结果 |
-| 缓存 | Redis，V0.1 先预留接口 | 热工单详情、队列计数、可选抢单锁 |
-| 消息队列 | RabbitMQ 或 Kafka，V0.1 用接口抽象 | 工单创建、状态变更、AI Assist 完成事件 |
-| AI 服务 | Python 3.10, FastAPI | 意图识别、成本路由、RAG mock、转人工评估 |
+| 缓存 | Redis，V0.2 已接入 fallback/cache 实现 | 热工单详情、队列计数、AI 事件幂等、可选抢单削峰锁 |
+| 消息队列 | RabbitMQ，Kafka 作为 V0.3 扩展方向 | 工单创建、状态变更、AI Assist 完成事件、失败重试和死信队列 |
+| AI 服务 | Python 3.10, FastAPI | 意图识别、成本路由、RAG 查询、转人工评估、评估指标 |
 | 前端 | React, Vite | 三栏坐席工作台、AI Assist、状态操作 |
 | 测试 | JUnit 5, Spring Boot Test, pytest | 状态流转、并发抢单、AI 边界行为 |
 
@@ -167,7 +183,7 @@ OPEN -> IN_PROGRESS -> WAITING_CUSTOMER -> RESOLVED -> CLOSED
 
 ### 3. 事件异步处理
 
-V0.1 的核心事件：
+V0.1 定义的核心事件在 V0.2 中继续保留，并接入了 RabbitMQ 回写链路：
 
 | 事件 | 生产者 | 消费者 | 作用 |
 | --- | --- | --- | --- |
@@ -184,13 +200,13 @@ V0.1 的核心事件：
 
 ### 4. Redis / MQ 基础设施
 
-V0.2 会把 V0.1 里的接口抽象接入真实 Redis 和 RabbitMQ。Kafka 保留为后续扩展选项，因为 V0.2 的核心是工单事件驱动和 AI 异步处理，RabbitMQ 的路由、确认、死信队列和延迟重试更贴合当前规模。
+V0.2 已把 V0.1 里的接口抽象接入 Redis 和 RabbitMQ。Kafka 保留为后续扩展选项，因为 V0.2 的核心是工单事件驱动和 AI 异步处理，RabbitMQ 的路由、确认、死信队列和延迟重试更贴合当前规模。
 
 #### 4.1 Redis 缓存与幂等
 
 Redis 在 V0.2 中不作为业务事实来源，只承担加速、削峰和短期幂等。
 
-计划用途：
+当前用途：
 
 | 场景 | Key 设计 | 说明 |
 | --- | --- | --- |
@@ -239,13 +255,13 @@ Ticket Service
 
 ### 5. RAG 知识库
 
-V0.1 先用轻量 RAG mock，V0.2 升级为真实企业知识库。
+V0.1 先用轻量 RAG mock，V0.2 已升级为本地可追溯、可评估的企业知识库链路。
 
 RAG-Anything 可以作为 V0.2 的工程参考，重点借鉴它在多模态文档解析、版式结构保留、上下文感知处理、向量/图结构融合检索上的思路。它适合处理 PDF、Office、图片、表格、公式等复杂文档，也提供 page/chunk 级上下文窗口、header/caption 保留和 hybrid 查询模式。ContactFlow AI 不直接照搬整个框架，而是把企业客服场景最需要的链路拆出来实现，避免 MVP 被重型依赖和模型配置拖慢。
 
 参考：<https://github.com/HKUDS/RAG-Anything>
 
-V0.2 目标设计：
+V0.2 当前链路：
 
 ```text
 多源文档
@@ -275,7 +291,7 @@ V0.2 目标设计：
 
 #### 5.1 NLP 动态切分
 
-V0.2 会实现结构优先的动态切分，而不是简单按字符数切片。
+V0.2 已实现结构优先的动态切分，而不是简单按字符数切片。
 
 切分顺序：
 
@@ -299,7 +315,7 @@ Markdown / 标题 / 表格 / 列表结构识别
 
 #### 5.2 Query Rewrite 与语义校验
 
-V0.2 可以做 query rewrite，但必须加防噪音机制。
+V0.2 支持 query rewrite，并通过语义相似度校验控制噪音。
 
 流程：
 
@@ -321,7 +337,7 @@ V0.2 可以做 query rewrite，但必须加防噪音机制。
 
 #### 5.3 混合检索、重排序与策略路由
 
-V0.2 会实现多路召回，但重排序按问题复杂度分级开启。
+V0.2 支持多路召回，重排序按问题复杂度分级开启。
 
 召回通道：
 
@@ -440,7 +456,7 @@ Python：
 
 ## 本地运行
 
-当前仓库提供代码骨架、测试命令和 Docker Compose 部署文件。V0.1.0 可以本地三端分别启动，也可以用 Compose 拉起 MySQL、Redis、RabbitMQ、后端、AI 服务和前端。
+当前仓库提供 V0.2.0 代码、测试命令和 Docker Compose 部署文件。可以本地三端分别启动，也可以用 Compose 拉起 MySQL、Redis、RabbitMQ、后端、AI 服务和前端。
 
 ```bash
 # Java tests, after Maven is available
