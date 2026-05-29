@@ -16,7 +16,7 @@ jobs:
           distribution: temurin
           java-version: "17"
           cache: maven
-      - run: mvn test
+      - run: mvn --settings ../.github/maven-settings.xml test
         working-directory: backend
 
   ai-service:
