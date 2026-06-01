@@ -1,3 +1,4 @@
+# 展示说明：V0.2 ingestion 构建工具，把企业客服 Markdown 知识库切分为 JSONL 索引并落盘 manifest。
 from __future__ import annotations
 
 import json
@@ -17,6 +18,7 @@ def build_index(
     index_path: Path | None = None,
     manifest_path: Path | None = None,
 ) -> dict[str, object]:
+    # 构建索引：复用 RagQueryEngine 的 chunker 结果，生成 chunks.jsonl 和 manifest.json。
     engine = RagQueryEngine(dataset_root=dataset_root)
     root = dataset_root or engine.dataset_root
     target_index = index_path or root / "index" / "chunks.jsonl"
@@ -34,6 +36,7 @@ def build_index(
 
 
 def main() -> None:
+    # 命令行入口：输出 chunk、文档和租户数量，方便本地演示 ingestion 结果。
     manifest = build_index()
     print("ContactFlow AI RAG Index v0.2")
     print(f"Chunks: {manifest['chunk_count']}")

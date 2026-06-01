@@ -1,3 +1,4 @@
+# 展示说明：V0.2 RAG 编排核心，把 Markdown 知识库、Query Rewrite、混合召回、重排序、引用、fallback 和评估指标串成一条可追溯链路。
 from __future__ import annotations
 
 import json
@@ -36,6 +37,7 @@ UNSUPPORTED_ENTITLEMENT_TERMS = {
 
 
 class RagQueryEngine:
+    # 初始化完整检索运行时：加载 demo KB、构建轻量 embedding、rewrite、chunker、retriever 和 evaluator。
     def __init__(self, dataset_root: Path | None = None) -> None:
         self.dataset_root = dataset_root or self._default_dataset_root()
         self.embedding_model = HashingEmbeddingModel()
@@ -54,6 +56,7 @@ class RagQueryEngine:
         expected_doc_ids: list[str] | None = None,
         expected_evidence_keywords: list[str] | None = None,
     ) -> dict[str, Any]:
+        # 主查询流程：对单次问题产出答案、引用证据、转人工判断，以及可用于前端展示和批量评估的 trace。
         started = time.perf_counter()
         normalized_top_k = max(1, min(top_k, 10))
         intent = self._detect_intent(query)
@@ -123,6 +126,7 @@ class RagQueryEngine:
         }
 
     def _load_chunks(self) -> list[KnowledgeChunk]:
+        # 从三租户 Markdown 企业知识库加载文档，按结构化 chunk 生成父子索引基础数据。
         kb_root = self.dataset_root / "kb"
         if not kb_root.exists():
             raise FileNotFoundError(f"Demo knowledge base not found: {kb_root}")
@@ -156,6 +160,7 @@ class RagQueryEngine:
 
     @staticmethod
     def _split_frontmatter(raw: str) -> tuple[dict[str, str], str]:
+        # 解析 Markdown frontmatter 元数据，为租户、doc_id、生效时间和标题提供可追溯来源。
         if not raw.startswith("---"):
             return {}, raw
         parts = raw.split("---", 2)
@@ -171,6 +176,7 @@ class RagQueryEngine:
 
     @staticmethod
     def _tags_for_document(doc_id: str, title: str, content: str) -> set[str]:
+        # 根据文档路径、标题和内容补充业务标签，支持 FAQ、SOP、退款、物流、投诉等多路召回加权。
         text = f"{doc_id} {title} {content}".lower()
         tags = {"manual"}
         if "sop" in text:
@@ -191,6 +197,7 @@ class RagQueryEngine:
         return tags
 
     def _detect_intent(self, query: str) -> Intent:
+        # 轻量意图识别：将客服问题映射到退款、物流、账单、投诉等检索和风控策略。
         lowered = query.lower()
         if self._contains(lowered, ["起诉", "律师", "监管", "媒体", "曝光", "投诉", "complaint"]):
             return Intent.COMPLAINT
@@ -205,11 +212,13 @@ class RagQueryEngine:
         return Intent.GENERAL
 
     def _choose_strategy(self, query: str, intent: Intent, top_k: int) -> RetrievalStrategy:
+        # 根据风险和召回深度选择 simple/standard/deep 策略，保证高风险场景优先走深度检索。
         if top_k >= 5 or self._is_high_risk(query):
             return RetrievalStrategy.DEEP
         return self.retriever.choose_strategy(query, intent)
 
     def _rerank(self, query: str, hits: list[HybridHit], intent: Intent) -> list[HybridHit]:
+        # 轻量重排序：融合精确词重合、风险 SOP、业务意图和来源类型，让更可解释的证据排在前面。
         query_tokens = set(tokenize(query))
 
         def score(hit: HybridHit) -> float:
@@ -245,6 +254,7 @@ class RagQueryEngine:
         )
 
     def _has_enough_evidence(self, hits: list[HybridHit]) -> bool:
+        # 证据充分性判断：避免低分向量结果直接生成确定性客服答复。
         if not hits:
             return False
         top = hits[0]
@@ -258,6 +268,7 @@ class RagQueryEngine:
         evidence_ok: bool,
         citations: list[dict[str, Any]],
     ) -> tuple[bool, str | None]:
+        # fallback 决策：高风险强制转人工，证据不足时保守转人工并记录原因。
         if high_risk:
             return True, "high_risk_handoff"
         if not evidence_ok or not citations:
@@ -271,6 +282,7 @@ class RagQueryEngine:
         should_handoff: bool,
         fallback_reason: str | None,
     ) -> str:
+        # 答案生成模板：只基于已召回证据组织回复，高风险和无证据场景输出安全边界提示。
         if fallback_reason == "high_risk_handoff":
             return (
                 "已识别为高风险或投诉升级场景。系统只提供坐席处理建议：先安抚客户，确认订单、诉求和证据，"
@@ -290,6 +302,7 @@ class RagQueryEngine:
         return "根据已召回的企业知识库证据：" + "；".join(snippets) + "。坐席回复时应保留审核边界，并引用对应政策来源。"
 
     def _build_citations(self, hits: list[HybridHit]) -> list[dict[str, Any]]:
+        # 引用构建：把 chunk、文档、章节、租户、分数和召回方式打包给前端 Evidence Trace。
         citations = []
         for hit in hits:
             citations.append(
@@ -308,6 +321,7 @@ class RagQueryEngine:
 
     @staticmethod
     def _fallback_citations(citations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        # 无充分业务证据时只保留转人工、追溯、知识更新和租户隔离等内部 SOP 引用。
         allowed_docs = {
             "tenant-internal/handoff_routing_sop.md",
             "tenant-internal/agent_assist_trace_sop.md",
@@ -317,6 +331,7 @@ class RagQueryEngine:
         return [citation for citation in citations if citation["doc_id"] in allowed_docs]
 
     def _hit_payload(self, hit: HybridHit) -> dict[str, Any]:
+        # trace 命中明细：暴露向量分、BM25 分、来源加权和 checksum，便于评估定位。
         return {
             "chunk_id": hit.chunk.chunk_id,
             "doc_id": hit.chunk.doc_id,
@@ -333,6 +348,7 @@ class RagQueryEngine:
 
     @staticmethod
     def _answer_claims(answer: str, should_handoff: bool, citations: list[dict[str, Any]]) -> list[str]:
+        # 将答案抽象成声明类型，用于 faithfulness 与 citation coverage 的轻量评估。
         if not answer:
             return []
         if should_handoff:
@@ -341,10 +357,12 @@ class RagQueryEngine:
 
     @staticmethod
     def _query_terms(query: str) -> list[str]:
+        # 提取问题关键词作为 context recall 的默认 required_terms。
         return [token for token in tokenize(query) if len(token) > 1 or token.isdigit()]
 
     @staticmethod
     def _tenant_leak_count(tenant: str, citations: list[dict[str, Any]]) -> int:
+        # 多租户隔离检查：统计引用中是否混入非当前租户且非内部 SOP 的文档。
         leaks = 0
         for citation in citations:
             citation_tenant = citation.get("tenant")
@@ -354,20 +372,24 @@ class RagQueryEngine:
 
     @staticmethod
     def _is_high_risk(query: str) -> bool:
+        # 高风险关键词检测：投诉、法律、媒体曝光等场景进入人工优先策略。
         lowered = query.lower()
         return any(term in lowered for term in HIGH_RISK_TERMS)
 
     @staticmethod
     def _is_unsupported_entitlement(query: str) -> bool:
+        # 未授权权益检测：终身免费、无限补偿等问题不得由 RAG 自动承诺。
         lowered = query.lower()
         return any(term in lowered for term in UNSUPPORTED_ENTITLEMENT_TERMS)
 
     @staticmethod
     def _contains(text: str, keywords: list[str]) -> bool:
+        # 统一关键词命中工具，便于规则型意图和风险判断保持可读。
         return any(keyword in text for keyword in keywords)
 
     @staticmethod
     def _compact_text(text: str, max_chars: int) -> str:
+        # 引用片段压缩：控制客服建议中的证据摘录长度，适合坐席台展示。
         normalized = re.sub(r"\s+", " ", text).strip()
         if len(normalized) <= max_chars:
             return normalized
@@ -375,10 +397,12 @@ class RagQueryEngine:
 
     @staticmethod
     def _default_dataset_root() -> Path:
+        # 默认数据集路径：指向仓库内 V0.2 专业合成企业知识库。
         return Path(__file__).resolve().parents[3] / "datasets" / "contactflow_demo_kb_v0.2"
 
 
 def load_eval_cases(dataset_root: Path | None = None) -> list[dict[str, Any]]:
+    # 读取 120 条 JSONL 评估问题，供 API 级测试和批量评估脚本复用。
     root = dataset_root or RagQueryEngine._default_dataset_root()
     cases_path = root / "eval" / "eval_cases.jsonl"
     return [json.loads(line) for line in cases_path.read_text(encoding="utf-8").splitlines() if line.strip()]

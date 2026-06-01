@@ -1,5 +1,7 @@
 package com.contactflow.ticket.domain;
 
+// 展示说明：AI Assist 落库实体，保存异步分析结果、引用证据、置信度、耗时和成本，并通过唯一键保证幂等。
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -15,6 +17,7 @@ import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "ticket_ai_assists", uniqueConstraints = @UniqueConstraint(name = "uk_ai_assist_event", columnNames = {"ticket_id", "source_event_id"}))
+// AI Assist 结果表：ticket_id + source_event_id 唯一，防止 MQ 重试导致重复建议。
 public class TicketAiAssist {
     @Id
     @JdbcTypeCode(SqlTypes.BINARY)
@@ -66,6 +69,7 @@ public class TicketAiAssist {
     }
 
     public TicketAiAssist(UUID ticketId, String sourceEventId, String intent, String summary, String suggestedReply, boolean handoffRecommended, String handoffReason, SlaRisk slaRisk, BigDecimal confidence, String citationsJson, int latencyMs, BigDecimal estimatedCostUsd) {
+        // 构建 AI Assist 结果：将服务端回写 payload 固化为可审计的业务记录。
         this.id = UUID.randomUUID();
         this.ticketId = ticketId;
         this.sourceEventId = sourceEventId;

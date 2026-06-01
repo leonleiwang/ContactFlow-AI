@@ -1,3 +1,4 @@
+# 展示说明：V0.2 RAG 批量评估工具，执行 120 条 JSONL case 并落盘汇总指标与 case 级定位数据。
 from __future__ import annotations
 
 import json
@@ -13,6 +14,7 @@ from app.rag.query_engine import RagQueryEngine, load_eval_cases  # noqa: E402
 
 
 def average(values: list[float]) -> float:
+    # 安全平均值工具：评估列表为空时返回 0，避免本地演示脚本异常中断。
     return sum(values) / len(values) if values else 0.0
 
 
@@ -21,6 +23,7 @@ def run_eval(
     report_path: Path | None = None,
     include_case_results: bool = True,
 ) -> dict[str, Any]:
+    # 批量评估主流程：逐条调用 /rag/query 同款引擎，聚合召回、忠实度、引用、租户隔离和转人工准确率。
     engine = RagQueryEngine(dataset_root=dataset_root)
     cases = load_eval_cases(dataset_root=dataset_root)
 
@@ -100,6 +103,7 @@ def run_eval(
 
 
 def main() -> None:
+    # 命令行入口：打印核心评估指标，并默认更新 latest_report.json。
     report = run_eval()
     summary = report["summary"]
 

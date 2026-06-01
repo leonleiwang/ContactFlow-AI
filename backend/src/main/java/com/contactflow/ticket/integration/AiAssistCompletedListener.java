@@ -1,5 +1,7 @@
 package com.contactflow.ticket.integration;
 
+// 展示说明：RabbitMQ AI Assist 完成事件监听器，完成 V0.2 ai.assist.completed 回写、Redis 幂等标记和落库审计。
+
 import com.contactflow.ticket.domain.SlaRisk;
 import com.contactflow.ticket.service.TicketService;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -15,6 +17,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @ConditionalOnProperty(prefix = "contactflow.events.rabbit", name = "enabled", havingValue = "true")
+// 条件化监听组件：仅在 RabbitMQ 开启时消费完成队列，本地测试可自动回退为无 MQ 模式。
 public class AiAssistCompletedListener {
     private static final Duration AI_EVENT_TTL = Duration.ofHours(6);
 
@@ -29,6 +32,7 @@ public class AiAssistCompletedListener {
     }
 
     @RabbitListener(queues = "${contactflow.events.rabbit.ai-assist-completed-queue}")
+    // 完成事件处理：解析 envelope、按 sourceEventId 去重、调用 TicketService 幂等保存 AI Assist。
     public void handle(Map<String, Object> envelope) {
         Map<String, Object> payload = payload(envelope);
         String sourceEventId = required(payload, "sourceEventId");
@@ -55,6 +59,7 @@ public class AiAssistCompletedListener {
     }
 
     @SuppressWarnings("unchecked")
+    // 兼容 envelope 与裸 payload 两种消息格式，便于本地脚本和真实 MQ 同时复用。
     private Map<String, Object> payload(Map<String, Object> envelope) {
         Object nested = envelope.get("payload");
         if (nested instanceof Map<?, ?> map) {
@@ -63,6 +68,7 @@ public class AiAssistCompletedListener {
         return envelope;
     }
 
+    // 必填字段校验：缺失关键 AI Assist 字段时主动失败，交给 MQ 重试/死信链路处理。
     private static String required(Map<String, Object> payload, String field) {
         Object value = payload.get(field);
         if (value == null || value.toString().isBlank()) {
@@ -71,14 +77,17 @@ public class AiAssistCompletedListener {
         return value.toString();
     }
 
+    // 可选字符串转换：handoffReason 等字段为空时保持 null 语义。
     private static String optionalString(Object value) {
         return value == null ? null : value.toString();
     }
 
+    // 布尔字段转换：兼容 JSON boolean 与字符串形式的布尔值。
     private static boolean bool(Object value) {
         return Boolean.parseBoolean(String.valueOf(value));
     }
 
+    // 数值字段转换：统一处理 confidence、latencyMs、estimatedCostUsd 等数值。
     private static BigDecimal decimal(Object value) {
         if (value == null) {
             return BigDecimal.ZERO;
@@ -89,6 +98,7 @@ public class AiAssistCompletedListener {
         return new BigDecimal(value.toString());
     }
 
+    // 引用证据序列化：将 citations 统一保存为 JSON 字符串，便于数据库落库和前端展示。
     private String citationsJson(Object value) {
         if (value == null) {
             return "[]";

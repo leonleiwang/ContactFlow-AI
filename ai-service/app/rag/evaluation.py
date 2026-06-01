@@ -1,3 +1,4 @@
+# 展示说明：V0.2 RAG 评估模块，计算 Context Recall、Faithfulness、Citation Coverage 和幻觉风险等可运营指标。
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -7,6 +8,7 @@ from app.rag.retrieval import HybridHit
 
 
 @dataclass(frozen=True)
+# 单次 RAG 查询指标：用于 API trace、批量评估报告和前端 Evidence Trace 面板统一展示。
 class RagMetrics:
     context_recall: float
     faithfulness: float
@@ -16,6 +18,7 @@ class RagMetrics:
 
 class RagEvaluator:
     def context_recall(self, required_terms: set[str], hits: list[HybridHit]) -> float:
+        # Context Recall：检查期望证据关键词是否出现在召回上下文中，衡量召回覆盖度。
         if not required_terms:
             return 1.0
         context = " ".join(hit.chunk.text for hit in hits).lower()
@@ -23,6 +26,7 @@ class RagEvaluator:
         return found / len(required_terms)
 
     def faithfulness(self, answer: str, hits: list[HybridHit]) -> float:
+        # Faithfulness：用答案词项与证据上下文重合度近似衡量答案是否受证据支持。
         answer_terms = set(tokenize(answer))
         if not answer_terms:
             return 1.0
@@ -31,6 +35,7 @@ class RagEvaluator:
         return len(supported) / len(answer_terms)
 
     def citation_coverage(self, answer_claims: list[str], citations: list[dict]) -> float:
+        # Citation Coverage：确保每类答案声明都有足够引用支撑，降低无出处回复。
         if not answer_claims:
             return 1.0
         if not citations:
@@ -46,6 +51,7 @@ class RagEvaluator:
         citations: list[dict],
         hits: list[HybridHit],
     ) -> RagMetrics:
+        # 聚合评估：一次性产出可落盘、可展示、可回归比较的 RAG 指标。
         context_recall = self.context_recall(required_terms, hits)
         faithfulness = self.faithfulness(answer, hits)
         citation_coverage = self.citation_coverage(answer_claims, citations)

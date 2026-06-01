@@ -1,5 +1,7 @@
 package com.contactflow.ticket.domain;
 
+// 展示说明：工单审计事件实体，记录创建、抢单、状态流转和 AI Assist 挂载等关键生命周期动作。
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -13,6 +15,7 @@ import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "ticket_events")
+// 审计事件表：以 append-only 方式保留工单状态变化和操作原因，便于追踪与质检。
 public class TicketEvent {
     @Id
     @JdbcTypeCode(SqlTypes.BINARY)
@@ -51,6 +54,7 @@ public class TicketEvent {
     }
 
     public TicketEvent(UUID ticketId, String tenantId, TicketEventType eventType, String actorId, TicketStatus fromStatus, TicketStatus toStatus, String reason) {
+        // 创建审计事件：记录操作者、前后状态、原因和发生时间。
         this.id = UUID.randomUUID();
         this.ticketId = ticketId;
         this.tenantId = tenantId;

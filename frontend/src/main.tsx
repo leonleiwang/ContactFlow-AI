@@ -1,3 +1,4 @@
+// 展示说明：V0.2 React 三栏坐席台原型，集中展示工单队列、并发抢单状态、AI Assist 和 RAG Evidence Trace 面板。
 import React, { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -70,6 +71,7 @@ type TraceScenario = {
 };
 
 const initialTickets: Ticket[] = [
+  // 演示工单数据：覆盖物流投诉、退款咨询和发票问题，用于展示不同风险与 AI 状态。
   {
     id: "T-1042",
     title: "物流超过承诺时间仍未更新",
@@ -114,6 +116,7 @@ const initialTickets: Ticket[] = [
 ];
 
 const traceScenarios: TraceScenario[] = [
+  // RAG Evidence Trace 手工场景：覆盖有证据、高风险转人工和无充分证据 fallback 三类演示。
   {
     id: "refund-quality",
     label: "退款质检",
@@ -189,12 +192,14 @@ const traceScenarios: TraceScenario[] = [
 ];
 
 function App() {
+  // 坐席台主组件：组织左侧队列、中间会话工作区和右侧 Copilot / Trace / Evals 面板。
   const [tickets, setTickets] = useState<Ticket[]>(initialTickets);
   const [selectedId, setSelectedId] = useState("T-1042");
   const [rightTab, setRightTab] = useState<RightPanelTab>("assist");
   const selected = tickets.find((ticket) => ticket.id === selectedId) ?? tickets[0];
 
   const queueStats = useMemo(() => {
+    // 队列统计：模拟 Redis 队列计数缓存提供的 open/active/risk 概览。
     return {
       open: tickets.filter((ticket) => ticket.status === "OPEN").length,
       active: tickets.filter((ticket) => ticket.status === "IN_PROGRESS").length,
@@ -203,6 +208,7 @@ function App() {
   }, [tickets]);
 
   function claimTicket() {
+    // 抢单交互：演示 OPEN 工单领取成功，以及非 OPEN 工单由服务端条件更新返回冲突。
     setTickets((current) =>
       current.map((ticket) => {
         if (ticket.id !== selected.id) return ticket;
@@ -223,6 +229,7 @@ function App() {
   }
 
   function simulateClaimConflict() {
+    // 冲突模拟：把当前工单标记为已被其他坐席领取，展示并发抢单失败提示。
     setTickets((current) =>
       current.map((ticket) =>
         ticket.id === selected.id
@@ -238,6 +245,7 @@ function App() {
   }
 
   function transition(target: TicketStatus) {
+    // 状态流转交互：模拟后端状态机把工单推进到等待客户、已解决、升级或关闭。
     setTickets((current) =>
       current.map((ticket) =>
         ticket.id === selected.id
@@ -403,6 +411,7 @@ function App() {
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
+  // 队列指标卡：展示 Open、Active、Risk 三个关键运营数字。
   return (
     <div className="metric-card">
       <span>{label}</span>
@@ -412,10 +421,12 @@ function Metric({ label, value }: { label: string; value: number }) {
 }
 
 function StatusBadge({ status }: { status: TicketStatus }) {
+  // 状态徽标：让不同工单状态在列表中可快速扫读。
   return <span className={`status-badge status-${status.toLowerCase()}`}>{status}</span>;
 }
 
 function AiAssist({ ticket }: { ticket: Ticket }) {
+  // AI Assist 面板：按 pending/failed/completed 展示异步分析状态、摘要、风险和建议回复。
   if (ticket.aiState === "pending") {
     return (
       <div className="assist-state">
@@ -483,6 +494,7 @@ function AiAssist({ ticket }: { ticket: Ticket }) {
 }
 
 function EvidenceTracePanel() {
+  // RAG Evidence Trace 面板：展示 intent、fallback、metrics、citations 和 trace steps。
   const [activeId, setActiveId] = useState(traceScenarios[0].id);
   const active = traceScenarios.find((scenario) => scenario.id === activeId) ?? traceScenarios[0];
 
@@ -573,6 +585,7 @@ function EvidenceTracePanel() {
 }
 
 function EvalPanel() {
+  // 评估面板：展示批量评估报告中的核心指标，呼应后端 latest_report.json。
   const rows = [
     ["Context Recall", "0.58", "retrieval gap"],
     ["Citation Coverage", "1.00", "stable"],
@@ -604,6 +617,7 @@ function EvalPanel() {
 }
 
 function MiniMetric({ label, value }: { label: string; value: string }) {
+  // Trace 小指标：压缩展示召回、引用、忠实度和租户泄漏计数。
   return (
     <div className="mini-metric">
       <span>{label}</span>

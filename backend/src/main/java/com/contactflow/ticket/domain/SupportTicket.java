@@ -1,5 +1,7 @@
 package com.contactflow.ticket.domain;
 
+// 展示说明：工单聚合根实体，承载租户隔离、状态、优先级、SLA、抢单归属和状态机流转规则。
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -16,6 +18,7 @@ import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "support_tickets")
+// 支持工单实体：对应 Flyway support_tickets 表，是抢单、流转和审计链路的核心业务对象。
 public class SupportTicket {
     @Id
     @JdbcTypeCode(SqlTypes.BINARY)
@@ -65,6 +68,7 @@ public class SupportTicket {
     }
 
     public SupportTicket(String tenantId, String title, String customerName, String customerMessage, TicketPriority priority, Instant slaDueAt) {
+        // 新建工单默认进入 OPEN 状态，等待坐席领取或后续 AI Assist 异步分析。
         this.id = UUID.randomUUID();
         this.tenantId = tenantId;
         this.title = title;
@@ -76,6 +80,7 @@ public class SupportTicket {
     }
 
     @PrePersist
+    // 创建时间钩子：首次落库时自动填充 createdAt 和 updatedAt。
     void onCreate() {
         Instant now = Instant.now();
         createdAt = now;
@@ -83,6 +88,7 @@ public class SupportTicket {
     }
 
     @PreUpdate
+    // 更新时间钩子：每次更新工单状态或归属时刷新 updatedAt。
     void onUpdate() {
         updatedAt = Instant.now();
     }
@@ -144,6 +150,7 @@ public class SupportTicket {
     }
 
     public void transitionTo(TicketStatus target, String reason) {
+        // 领域状态流转：阻止关闭后修改、无原因升级和非法状态迁移。
         if (status == TicketStatus.CLOSED) {
             throw new TicketStateConflictException("Closed ticket cannot be changed");
         }

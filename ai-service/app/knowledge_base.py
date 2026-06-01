@@ -1,3 +1,4 @@
+# 展示说明：AI Assist 内存知识库适配层，复用 V0.2 混合检索能力为工单建议回复提供租户内证据。
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -7,6 +8,7 @@ from app.rag.retrieval import HybridRetriever, RetrievalStrategy
 
 
 @dataclass
+# AI Assist 使用的检索命中结构：只暴露 chunk 和总分，保持规则引擎调用简单。
 class RetrievalHit:
     chunk: KnowledgeChunk
     score: float
@@ -22,6 +24,7 @@ class InMemoryKnowledgeBase:
     """
 
     def __init__(self, chunks: list[KnowledgeChunk] | None = None) -> None:
+        # 初始化演示知识库：内置少量租户 A 售后/物流样例，也支持测试注入完整 chunk 集合。
         self._chunks = chunks or [
             KnowledgeChunk(
                 chunk_id="refund-7d",
@@ -52,5 +55,6 @@ class InMemoryKnowledgeBase:
         intent: Intent = Intent.GENERAL,
         strategy: RetrievalStrategy | None = None,
     ) -> list[RetrievalHit]:
+        # 租户内检索：调用混合召回器并裁剪结果数量，避免跨租户文档进入坐席建议。
         hits = self._retriever.retrieve(query, tenant_id=tenant_id, intent=intent, strategy=strategy)
         return [RetrievalHit(chunk=hit.chunk, score=hit.score) for hit in hits[:limit]]

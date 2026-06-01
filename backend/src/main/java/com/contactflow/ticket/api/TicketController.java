@@ -1,5 +1,7 @@
 package com.contactflow.ticket.api;
 
+// 展示说明：工单 REST API 层，对外展示创建、列表、详情、抢单、流转、AI Assist 回写和审计查询能力。
+
 import com.contactflow.ticket.api.TicketDtos.AiAssistRequest;
 import com.contactflow.ticket.api.TicketDtos.AiAssistResponse;
 import com.contactflow.ticket.api.TicketDtos.ClaimTicketRequest;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api")
+// 工单控制器：保持接口薄封装，业务一致性和缓存/事件处理都委托给 TicketService。
 public class TicketController {
     private final TicketService ticketService;
 
@@ -29,31 +32,37 @@ public class TicketController {
     }
 
     @PostMapping("/tickets")
+    // 创建工单接口：触发工单落库、审计事件和异步 AI Assist 事件发布。
     public TicketResponse createTicket(@Valid @RequestBody CreateTicketRequest request) {
         return TicketResponse.from(ticketService.createTicket(request.tenantId(), request.title(), request.customerName(), request.customerMessage(), request.priority()));
     }
 
     @GetMapping("/tickets")
+    // 工单列表接口：按租户返回队列，用于三栏坐席台左侧列表。
     public List<TicketResponse> listTickets(@RequestParam String tenantId) {
         return ticketService.listTickets(tenantId).stream().map(TicketResponse::from).toList();
     }
 
     @GetMapping("/tickets/{ticketId}")
+    // 工单详情接口：按租户读取单个工单，服务层负责租户隔离校验。
     public TicketResponse getTicket(@PathVariable UUID ticketId, @RequestParam String tenantId) {
         return TicketResponse.from(ticketService.getTicket(tenantId, ticketId));
     }
 
     @PostMapping("/tickets/{ticketId}/claim")
+    // 抢单接口：演示并发领取时的 Redis 削峰锁与 MySQL 条件更新。
     public TicketResponse claimTicket(@PathVariable UUID ticketId, @Valid @RequestBody ClaimTicketRequest request) {
         return TicketResponse.from(ticketService.claimTicket(request.tenantId(), ticketId, request.agentId()));
     }
 
     @PostMapping("/tickets/{ticketId}/transitions")
+    // 状态流转接口：驱动工单状态机、审计事件和状态变更消息。
     public TicketResponse transition(@PathVariable UUID ticketId, @Valid @RequestBody TransitionRequest request) {
         return TicketResponse.from(ticketService.transition(request.tenantId(), ticketId, request.actorId(), request.targetStatus(), request.reason()));
     }
 
     @PostMapping("/ai-assists")
+    // AI Assist 回写接口：用于本地或测试直接模拟 ai.assist.completed 幂等落库。
     public AiAssistResponse attachAiAssist(@Valid @RequestBody AiAssistRequest request) {
         return AiAssistResponse.from(ticketService.attachAiAssist(
                 request.ticketId(),
@@ -72,6 +81,7 @@ public class TicketController {
     }
 
     @GetMapping("/tickets/{ticketId}/events")
+    // 审计事件接口：展示工单创建、抢单、流转、AI Assist 挂载等生命周期记录。
     public List<Map<String, Object>> listEvents(@PathVariable UUID ticketId) {
         return ticketService.listEvents(ticketId).stream()
                 .map(event -> Map.<String, Object>of(
@@ -87,6 +97,7 @@ public class TicketController {
     }
 
     @GetMapping("/tickets/{ticketId}/ai-assists")
+    // AI Assist 列表接口：返回工单关联的历史建议结果，支撑坐席台 Copilot 面板。
     public List<AiAssistResponse> listAiAssists(@PathVariable UUID ticketId) {
         return ticketService.listAiAssists(ticketId).stream().map(AiAssistResponse::from).toList();
     }

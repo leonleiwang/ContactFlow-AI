@@ -1,3 +1,4 @@
+# 展示说明：V0.2 混合召回模块，融合向量相似度、BM25 关键词匹配、来源加权和租户隔离，支撑 FAQ/手册/SOP 多路召回。
 from __future__ import annotations
 
 import math
@@ -11,12 +12,14 @@ from app.rag.rewrite import QueryRewriter
 
 
 class RetrievalStrategy(str, Enum):
+    # 检索策略枚举：按问题复杂度在简单、标准和深度召回之间切换。
     SIMPLE = "simple"
     STANDARD = "standard"
     DEEP = "deep"
 
 
 @dataclass(frozen=True)
+# 混合召回命中：同时保留总分、向量分、BM25 分、来源加权和命中通道，方便 trace 展示。
 class HybridHit:
     chunk: KnowledgeChunk
     score: float
@@ -27,6 +30,7 @@ class HybridHit:
 
 
 class BM25Index:
+    # 构建轻量 BM25 索引，用于本地可测的关键词精确召回。
     def __init__(self, chunks: list[KnowledgeChunk]) -> None:
         self.chunks = chunks
         self.documents = [tokenize(f"{chunk.title} {chunk.text} {' '.join(chunk.tags)}") for chunk in chunks]
@@ -36,6 +40,7 @@ class BM25Index:
         self.avg_doc_len = sum(len(document) for document in self.documents) / max(len(self.documents), 1)
 
     def score(self, query: str, chunk_index: int) -> float:
+        # 对单个 chunk 计算 BM25 分数，让长尾实体、订单术语和政策关键词更容易被召回。
         terms = tokenize(query)
         if not terms:
             return 0.0
@@ -56,6 +61,7 @@ class BM25Index:
 
 
 class HybridRetriever:
+    # 初始化混合检索器：预计算 chunk 向量，并为同一批 chunk 构建 BM25 索引。
     def __init__(
         self,
         chunks: list[KnowledgeChunk],
@@ -79,6 +85,7 @@ class HybridRetriever:
         intent: Intent,
         strategy: RetrievalStrategy | None = None,
     ) -> list[HybridHit]:
+        # 混合召回主流程：先做 query rewrite，再按租户过滤，从向量和 BM25 两路召回后融合排序。
         strategy = strategy or self.choose_strategy(query, intent)
         queries = self.query_rewriter.accepted_queries(query, intent)
         candidate_limit = {
@@ -135,6 +142,7 @@ class HybridRetriever:
         return sorted(hits, key=lambda hit: hit.score, reverse=True)[:final_limit]
 
     def choose_strategy(self, query: str, intent: Intent) -> RetrievalStrategy:
+        # 策略路由：投诉、长问题或实体密集问题走 deep，售后/物流/技术走 standard，其余走 simple。
         entities = sum(1 for token in tokenize(query) if any(char.isdigit() for char in token) or len(token) >= 8)
         if intent == Intent.COMPLAINT or entities >= 2 or len(tokenize(query)) >= 18:
             return RetrievalStrategy.DEEP
@@ -143,6 +151,7 @@ class HybridRetriever:
         return RetrievalStrategy.SIMPLE
 
     def _source_bonus(self, chunk: KnowledgeChunk, intent: Intent) -> float:
+        # 来源加权：FAQ、政策、SOP 和意图匹配文档获得小幅加分，增强答案可解释性。
         tags = {tag.lower() for tag in chunk.tags}
         if "faq" in tags:
             return 0.08

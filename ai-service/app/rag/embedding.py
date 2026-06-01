@@ -1,3 +1,4 @@
+# 展示说明：V0.2 本地可测 embedding 模块，用确定性 hashing 向量模拟语义召回，避免测试依赖外部模型服务。
 from __future__ import annotations
 
 import hashlib
@@ -51,6 +52,7 @@ DOMAIN_TERMS = [
 
 
 def tokenize(text: str) -> list[str]:
+    # 领域分词：同时保留英文/数字、客服业务词和中文 n-gram，为向量召回与 BM25 共用。
     lowered = text.lower()
     tokens = [token.lower() for token in ASCII_TOKEN_PATTERN.findall(lowered)]
     for term in DOMAIN_TERMS:
@@ -70,9 +72,11 @@ class HashingEmbeddingModel:
     """
 
     def __init__(self, dimensions: int = 128) -> None:
+        # 维度固定保证本地测试稳定，也方便未来替换成真实 embedding 服务。
         self.dimensions = dimensions
 
     def embed(self, text: str) -> list[float]:
+        # 文本向量化：把 token 哈希到固定维度并归一化，支持离线可复现的相似度检索。
         vector = [0.0] * self.dimensions
         for token in tokenize(text):
             digest = hashlib.sha256(token.encode("utf-8")).digest()
@@ -83,6 +87,7 @@ class HashingEmbeddingModel:
 
 
 def normalize(vector: Iterable[float]) -> list[float]:
+    # 向量归一化：让余弦相似度可比较，避免长文本天然占优。
     values = list(vector)
     norm = math.sqrt(sum(value * value for value in values))
     if norm == 0:
@@ -91,6 +96,7 @@ def normalize(vector: Iterable[float]) -> list[float]:
 
 
 def cosine_similarity(left: list[float], right: list[float]) -> float:
+    # 余弦相似度：向量召回和 rewrite 语义校验共用的基础评分函数。
     if not left or not right or len(left) != len(right):
         return 0.0
     return sum(a * b for a, b in zip(left, right))
