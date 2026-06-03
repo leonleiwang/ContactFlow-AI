@@ -1,598 +1,294 @@
 # ContactFlow AI
 
-ContactFlow AI 是一个面向企业客服与工单处理场景的 AI Contact Center 原型系统，采用 Java Spring Boot、Python AI Service 与 React 构建，围绕工单流转、坐席辅助、企业知识库检索、异步事件处理和服务治理，探索大模型能力在企业客服 SaaS 中的工程化落地。
+ContactFlow AI 是一个面向企业客服联络台的工单系统与坐席 AI 辅助原型。项目重点不是做一个简单 Chatbot，而是把 AI Assist、RAG 企业知识库、工单状态机、并发抢单、审计事件、缓存和异步消息放进同一条真实客服业务链路里。
 
-项目不是单纯的 AI Chatbot 和 RAG 企业知识库，而是将 AI 能力嵌入真实客服工单流程：Java 服务负责工单状态机、并发领取、审计日志、幂等控制和业务一致性；Python AI Service 负责意图识别、转人工评估、RAG 检索、风险判断和建议回复；Redis 与 RabbitMQ / Kafka 用于缓存、幂等、事件解耦和异步处理；React 前端提供面向坐席的三栏工作台，用于展示工单详情、AI Assist、SLA 风险和处理状态。
+> ContactFlow AI 的核心不是把 LLM 放在客服页面上聊天，而是把 AI 放进客服工单系统。工单主链路由 Spring Boot 和 MySQL 保证一致性，AI Assist 通过异步事件生成，RAG 通过证据引用和评估指标保证可追溯。真实模型接入采用 Qwen3-Max 和 qwen3-rerank，但模型不是强依赖；如果 API Key、网络或模型服务不可用，系统自动降级到模板回复、本地轻量重排序和前端 mock 演示数据，因此项目现场也不会因为 LLM 失败导致页面不可展示。
 
-**当前版本：V0.2.0**
+当前 V0.3.0 版本在 V0.2.0 基础上继续补齐了演示与架构韧性：前端从 3 条 mock 工单扩展到 20 条多类型工单；AI Service 新增 Qwen3-Max 主模型、备用模型和模板降级骨架；RAG 链路新增 qwen3-rerank 可选重排序 Provider，并保留本地轻量重排序作为 fallback。默认配置下不会强依赖外部大模型，因此项目展示时即使网络、API Key 或模型服务不可用，前端仍能完整展示工单、AI Assist 兜底建议和 RAG Evidence Trace。
 
-V0.2 在 V0.1 工单闭环之上，补齐了更接近企业 SaaS 的工程能力：RabbitMQ AI Assist 回写链路、Redis 热数据缓存与幂等标记、企业知识库 ingestion 持久化、可追溯 RAG 查询、批量评估报告以及前端 RAG Evidence Trace 面板。当前仓库主页展示的是 V0.2 代码与文档，V0.1 内容作为项目演进历史保留。
+## 当前定位
 
-在 V0.2 中，项目进一步扩展企业知识库 RAG 能力，重点从“能问答”升级到“可运营、可评估、可追溯”的知识检索系统：支持基于 Markdown / 段落结构和 NLP 句子边界的动态切分、token budget 与 overlap 控制、父子索引、Query Rewrite 语义校验、向量检索 + BM25 + FAQ / 手册多路召回、轻量重排序、证据引用、低置信转人工，以及 Context Recall、Faithfulness、幻觉率、Rewrite Accept Rate 和 Retrieval Latency 等评估指标。
+这个仓库适合展示以下能力：
 
-该项目关注的核心问题是：如何在企业客服场景中，让大模型既能辅助坐席提升处理效率，又不直接越权修改业务事实；如何通过异步架构、证据约束、成本路由、风险检查和人工确认机制，将 AI 从“聊天能力”落到可控、可追踪、可评估的业务流程中。
-
-## 项目定位
-
-核心目标：
-
-- 用 Java Spring Boot 承担工单、状态流转、审计日志、并发控制、OpenAPI 合同等企业后端职责。
-- 用 Python AI Service 承担意图识别、转人工评估、AI 摘要、建议回复、SLA 风险检查、RAG 检索与成本路由。
-- 用 Redis / MQ / MySQL 体现真实企业系统中的缓存、异步处理和事实数据一致性。
-- 用 React 构建坐席工作台，而不是营销型 AI 页面。
-- 用可落地的企业知识库 RAG 设计补齐多源异构数据、ETL、语义切分、混合检索、重排序、幻觉控制、权限隔离和反馈闭环。
-
-## 版本时间线
-
-### V0.2 当前版本
-
-V0.2 的重点是把 V0.1 的业务闭环升级为“可运行、可追踪、可评估”的企业客服 AI 原型：
-
-- RabbitMQ 接入 `ai.assist.completed` 回写链路，支持失败重试、死信队列、AI Assist 幂等落库和审计事件。
-- Redis 接入热工单、队列计数、AI Assist 汇总缓存、短期幂等标记和可选抢单削峰锁，但业务事实仍以 MySQL 为准。
-- 企业知识库从 RAG mock 升级为本地可评估链路：Markdown ingestion、父子 chunk、混合召回、轻量重排、证据引用和低置信转人工。
-- 新增 24 篇合成企业客服知识文档、120 条 JSONL 评估问题、批量评估脚本和 `latest_report.json`，用于说明检索质量、幻觉风险和租户隔离边界。
-- React 坐席台新增 RAG Evidence Trace 面板，展示 intent、fallback、metrics、citations 和 trace steps，便于面试或 demo 时讲清楚 AI 不是黑盒。
-
-### V0.1 基础闭环
-
-V0.1 只做一个高价值闭环，作为后续版本的业务底座：
-
-> 工单创建后，Java 服务写入 MySQL 并发布 `ticket.created` 事件；Python AI Service 异步生成摘要、意图、SLA 风险、转人工建议和回复建议；Java 服务持久化 AI Assist；React 坐席台展示工单、AI Assist 和状态流转按钮。
-
-不一开始做复杂分布式，是为了把业务边界讲清楚：
-
-- 工单创建必须快，不能被 LLM 延迟阻塞。
-- AI 分析可能慢、可能失败、可能需要重试，所以放到异步链路。
-- Java 服务仍然是工单事实来源，Python AI 只返回建议，不直接修改业务状态。
-- 即使 AI 服务不可用，客服仍然能接单、流转、关闭工单。
-
-## 技术栈
-
-| 层 | 技术 | 责任 |
-| --- | --- | --- |
-| 后端业务核心 | Java 17, Spring Boot 3, Spring Data JPA | 工单、状态机、并发抢单、审计、API 合同 |
-| 数据库 | MySQL, Flyway | 业务事实、版本号、事件日志、AI Assist 结果 |
-| 缓存 | Redis，V0.2 已接入 fallback/cache 实现 | 热工单详情、队列计数、AI 事件幂等、可选抢单削峰锁 |
-| 消息队列 | RabbitMQ，Kafka 作为 V0.3 扩展方向 | 工单创建、状态变更、AI Assist 完成事件、失败重试和死信队列 |
-| AI 服务 | Python 3.10, FastAPI | 意图识别、成本路由、RAG 查询、转人工评估、评估指标 |
-| 前端 | React, Vite | 三栏坐席工作台、AI Assist、状态操作 |
-| 测试 | JUnit 5, Spring Boot Test, pytest | 状态流转、并发抢单、AI 边界行为 |
-
-## 目录结构
-
-```text
-contactflow-ai/
-  datasets/
-    contactflow_demo_kb_v0.2/
-      kb/
-        tenant-a/
-        tenant-b/
-        tenant-internal/
-      eval/
-        eval_cases.jsonl
-  backend/
-    pom.xml
-    src/main/java/com/contactflow/ticket/
-    src/main/resources/db/migration/
-    src/test/java/com/contactflow/ticket/
-  ai-service/
-    app/
-    tests/
-    requirements.txt
-  frontend/
-    package.json
-    src/
-  README.md
-```
+- 企业客服工单闭环：创建、领取、状态流转、审计事件、AI Assist 回写。
+- 坐席 AI 辅助：意图识别、SLA 风险、转人工建议、建议回复、引用证据。
+- RAG 企业知识库：Markdown ingestion、动态切块、父子 chunk、Query Rewrite、混合检索、重排序、citations、fallback、评估指标。
+- 工程韧性：LLM 不是主链路依赖，模型失败时自动降级，工单主流程仍可用。
+- 项目演示：React 三栏坐席台内置 20 条覆盖不同客服场景的 mock 工单，真实服务失败时仍可展示完整产品形态。
 
 ## 总体架构
 
-```text
-React 坐席工作台
-      |
-      v
-Spring Boot Ticket Service
-      |
-      +-- Ticket Domain
-      |     - 工单 CRUD
-      |     - 状态流转
-      |     - 并发抢单
-      |     - SLA 字段
-      |     - 审计事件
-      |
-      +-- Integration Layer
-      |     - OpenAPI DTO
-      |     - Redis 缓存接口
-      |     - MQ 事件发布接口
-      |
-      v
-MySQL
+```mermaid
+flowchart LR
+  Agent["坐席 / 项目演示者"] --> FE["React 三栏坐席台"]
+  FE --> BE["Spring Boot Ticket Service"]
+  FE --> AIS["Python FastAPI AI Service"]
 
-ticket.created / ticket.status_changed
-      |
-      v
-RabbitMQ / Kafka
-      |
-      v
-Python AI Service
-      |
-      +-- Intent Detection
-      +-- Handoff Evaluation
-      +-- Suggested Reply
-      +-- SLA Risk Check
-      +-- Lightweight RAG
-      +-- Cost Routing
-      |
-      v
-AI Assist Callback
-      |
-      v
-Spring Boot 持久化 ticket_ai_assists
+  BE --> DB[("MySQL\n工单事实 / 审计 / AI Assist")]
+  BE --> Redis[("Redis\n热工单 / 队列计数 / 幂等 / 抢单削峰")]
+  BE --> MQ["RabbitMQ\n事件异步处理"]
+
+  MQ --> AIS
+  AIS --> RAG["RAG Query Engine"]
+  RAG --> KB[("Markdown 企业知识库\nchunks.jsonl / manifest")]
+  RAG --> Rerank["qwen3-rerank\n可选重排序"]
+  AIS --> LLM["Qwen3-Max\nOpenAI-compatible"]
+
+  LLM -.失败/超时/无 Key.-> Template["模板降级"]
+  Rerank -.失败/超时/无 Key.-> LocalRank["本地轻量重排序"]
+  Template --> AIS
+  LocalRank --> RAG
+  AIS --> BE
 ```
 
-## 企业后端关键设计
+## 关键链路
 
-### 1. 并发抢单
+### 工单主链路
 
-场景：多个客服几乎同时点击“领取同一个工单”，系统只能允许一个人成功。
+```mermaid
+sequenceDiagram
+  participant U as 坐席台
+  participant B as Spring Boot
+  participant D as MySQL
+  participant M as RabbitMQ
+  participant A as AI Service
 
-V0.1 采用 **数据库条件更新 + 乐观版本号**：
-
-```sql
-update support_tickets
-set status = 'IN_PROGRESS',
-    assigned_agent_id = ?,
-    version = version + 1
-where id = ?
-  and status = 'OPEN';
+  U->>B: 创建/领取/流转工单
+  B->>D: 条件更新与审计事件
+  B-->>U: 返回工单事实
+  B->>M: ticket.created / status_changed
+  M->>A: 异步 AI Assist
+  A-->>B: ai.assist.completed
+  B->>D: 按 sourceEventId 幂等落库
 ```
-
-设计考虑：
-
-- `status = 'OPEN'` 是抢单成功的业务前置条件，天然保证只有未领取工单可以被领取。
-- `version` 保留给后续复杂编辑场景，例如坐席编辑工单字段、主管改优先级、自动 SLA 任务同时更新。
-- Redis 锁只能作为削峰优化，不能作为最终一致性来源；服务重启、锁超时、网络抖动都会让 Redis 锁不能代表业务事实。
-- MySQL 是最终事实来源，抢单结果以数据库更新行数为准：`updatedRows = 1` 成功，`updatedRows = 0` 失败。
-
-边界行为：
-
-- 工单已经被别人领取：返回 `409 CONFLICT`。
-- 工单不存在：返回 `404 NOT_FOUND`。
-- 工单已关闭或取消：返回 `409 CONFLICT`。
-- 重复点击领取：第一次可能成功，后续返回当前状态和负责人。
-
-### 2. 状态流转
-
-状态机：
-
-```text
-OPEN -> IN_PROGRESS -> WAITING_CUSTOMER -> RESOLVED -> CLOSED
-  |          |                 |
-  |          |                 +-> ESCALATED
-  |          +-> ESCALATED
-  +-> CANCELLED
-```
-
-设计考虑：
-
-- 状态流转集中在领域服务里，不散落在 Controller。
-- 每次流转写入 `ticket_events`，方便追踪是谁在什么时候做了什么。
-- `CLOSED` 是终态，不允许继续改状态，除非未来显式设计“重开工单”动作。
-- `ESCALATED` 必须带原因，避免只有状态没有上下文。
-
-### 3. 事件异步处理
-
-V0.1 定义的核心事件在 V0.2 中继续保留，并接入了 RabbitMQ 回写链路：
-
-| 事件 | 生产者 | 消费者 | 作用 |
-| --- | --- | --- | --- |
-| `ticket.created` | Java Ticket Service | Python AI Service | 异步生成摘要、意图、SLA 风险和建议回复 |
-| `ticket.status_changed` | Java Ticket Service | AI / Analytics | 后续可用于质检、SLA 统计和操作分析 |
-| `ai_assist.completed` | Python AI Service | Java Ticket Service | AI 结果落库并通知前端刷新 |
-
-设计考虑：
-
-- 创建工单和 AI 分析解耦，避免 LLM 延迟影响主交易链路。
-- AI 失败不影响工单主流程。
-- AI 输出入库前由 Java 服务校验，避免 AI 直接改变业务事实。
-- 事件使用 `eventId` 做幂等键，同一事件重复消费不会写出多条 Assist。
-
-### 4. Redis / MQ 基础设施
-
-V0.2 已把 V0.1 里的接口抽象接入 Redis 和 RabbitMQ。Kafka 保留为后续扩展选项，因为 V0.2 的核心是工单事件驱动和 AI 异步处理，RabbitMQ 的路由、确认、死信队列和延迟重试更贴合当前规模。
-
-#### 4.1 Redis 缓存与幂等
-
-Redis 在 V0.2 中不作为业务事实来源，只承担加速、削峰和短期幂等。
-
-当前用途：
-
-| 场景 | Key 设计 | 说明 |
-| --- | --- | --- |
-| 热工单详情缓存 | `ticket:{tenantId}:{ticketId}` | 缓存工单详情和 AI Assist 汇总，降低详情页反复查询 MySQL 的压力 |
-| 队列计数 | `ticket_queue_count:{tenantId}:{status}` | 坐席台左侧队列需要快速显示不同状态数量 |
-| AI 事件幂等 | `ai_event:{eventId}` | 防止 MQ 重复投递导致 AI Assist 重复处理 |
-| 抢单削峰锁，可选 | `claim_lock:{tenantId}:{ticketId}` | 只用于减少同一工单的瞬时竞争，最终结果仍以 MySQL 条件更新为准 |
-
-设计考虑：
-
-- Redis 缓存失效不能影响工单主流程，缓存未命中时回源 MySQL。
-- 工单状态、负责人、SLA 等业务事实必须以 MySQL 为准。
-- 抢单不能只依赖 Redis 锁，锁超时或服务重启都可能造成业务语义不完整。
-- AI 幂等 key 需要设置 TTL，避免长期堆积；最终落库仍依赖 `source_event_id` 唯一约束。
-
-#### 4.2 RabbitMQ / Kafka 事件处理
-
-V0.2 默认接 RabbitMQ，Kafka 作为 V0.3 或更高吞吐场景的替换实现。
-
-事件流：
-
-```text
-Ticket Service
-  -> ticket.created exchange
-  -> ai.assist.request queue
-  -> Python AI Service
-  -> ai.assist.completed callback
-  -> Ticket Service 落库
-```
-
-队列设计：
-
-| 队列 | 作用 | 失败策略 |
-| --- | --- | --- |
-| `ai.assist.request` | 工单创建后触发 AI 摘要、意图、SLA 检查 | 失败进入延迟重试 |
-| `ai.assist.retry` | AI 临时失败后的重试队列 | 超过次数进入死信 |
-| `ai.assist.dlq` | 保存不可恢复失败事件 | 后台人工排查或重放 |
-| `ticket.audit.events` | 状态流转和操作日志事件 | 后续用于统计、质检和审计 |
-
-设计考虑：
-
-- 事件消息必须带 `eventId`、`tenantId`、`ticketId`、`eventType`、`occurredAt` 和 `schemaVersion`。
-- 消费者按 `eventId` 做幂等，允许 MQ 至少一次投递。
-- AI 服务失败不能影响客服处理工单，前端展示 AI Assist pending / failed 状态。
-- RabbitMQ 适合当前的任务派发、重试和死信处理；Kafka 更适合后续大规模事件流、报表分析和多消费者订阅。
-
-### 5. RAG 知识库
-
-V0.1 先用轻量 RAG mock，V0.2 已升级为本地可追溯、可评估的企业知识库链路。
-
-RAG-Anything 可以作为 V0.2 的工程参考，重点借鉴它在多模态文档解析、版式结构保留、上下文感知处理、向量/图结构融合检索上的思路。它适合处理 PDF、Office、图片、表格、公式等复杂文档，也提供 page/chunk 级上下文窗口、header/caption 保留和 hybrid 查询模式。ContactFlow AI 不直接照搬整个框架，而是把企业客服场景最需要的链路拆出来实现，避免 MVP 被重型依赖和模型配置拖慢。
-
-参考：<https://github.com/HKUDS/RAG-Anything>
-
-V0.2 当前链路：
-
-```text
-多源文档
-  -> 原始文件存储
-  -> 版式解析
-  -> ETL 清洗
-  -> NLP 动态切分
-  -> 父子索引
-  -> 向量索引 + BM25 索引 + FAQ/手册索引
-  -> Query Rewrite 与语义校验
-  -> 分级策略路由
-  -> 混合检索
-  -> 重排序
-  -> 证据组装
-  -> 大模型生成
-  -> 引用校验、幻觉控制与低置信转人工
-  -> 反馈池与评估指标
-```
-
-设计考虑：
-
-- 不用固定长度切片作为主策略。企业知识往往包含条件、例外、生效时间和适用范围，切坏了会直接造成错误回答。
-- 父子索引保留上下文：子块用于精准召回，父块用于回答时补足政策上下文。
-- 混合检索解决只靠向量召回容易漏掉订单号、产品型号、政策编号、人名、机构名和专有术语的问题。
-- 所有回答必须能追溯到证据；证据不足时输出坐席摘要和转人工建议，而不是编造答案。
-- 未解决问题和坐席修改记录进入反馈池，但不能自动污染正式知识库，需要审核后发布。
-
-#### 5.1 NLP 动态切分
-
-V0.2 已实现结构优先的动态切分，而不是简单按字符数切片。
-
-切分顺序：
-
-```text
-Markdown / 标题 / 表格 / 列表结构识别
-  -> 段落边界识别
-  -> NLP 句子边界检测
-  -> token budget 合并
-  -> 约 100 token overlap
-  -> 生成 child chunk
-  -> 绑定 parent section
-```
-
-设计考虑：
-
-- Markdown 标题、列表、表格和段落先于 NLP 句子边界，因为企业手册、SOP、FAQ 的结构本身就是语义边界。
-- spaCy 或 NLTK 用于句子边界检测，主要解决长段落里多个条件句被切坏的问题。
-- 100 token 左右的 overlap 用于保留跨句指代、例外条件和补充说明，但 overlap 不能过大，否则会扩大召回噪音和存储成本。
-- child chunk 负责召回精度，parent section 负责生成答案时的上下文完整性。
-- 每个 chunk 保存 `tenant_id`、`doc_id`、`section_path`、`source_uri`、`effective_from`、`effective_to`、`acl_tags` 和 `checksum`，方便权限隔离、引用溯源和增量更新。
-
-#### 5.2 Query Rewrite 与语义校验
-
-V0.2 支持 query rewrite，并通过语义相似度校验控制噪音。
-
-流程：
-
-```text
-原始问题
-  -> 意图识别
-  -> 小模型生成 2-3 个改写问题
-  -> Embedding 相似度校验
-  -> Sim(original, rewrite) >= 0.8 的改写进入检索
-  -> Sim < 0.8 的改写丢弃
-```
-
-设计考虑：
-
-- query rewrite 适合把用户的口语化问题补全为更具体的业务问题，例如“这个还能退吗”扩写为“订单签收超过 7 天是否支持退货”。
-- 改写会带来额外召回能力，也可能引入原问题没有的条件，所以必须做语义相似度校验。
-- `0.8` 作为 V0.2 默认阈值，后续根据评测集调参；低于阈值直接舍弃，避免系统自己制造检索噪音。
-- 高风险意图、投诉、法务、赔偿承诺类问题默认减少或关闭自由扩写，只允许结构化补全，避免改变用户诉求。
-
-#### 5.3 混合检索、重排序与策略路由
-
-V0.2 支持多路召回，重排序按问题复杂度分级开启。
-
-召回通道：
-
-| 通道 | 作用 | 适合问题 |
-| --- | --- | --- |
-| Vector Search | 语义召回 | 口语化问题、近义表达、政策理解 |
-| BM25 | 关键词召回 | 人名、机构名、产品型号、政策编号、专有名词 |
-| FAQ Index | 高频问答补充 | 标准客服问题、固定话术、低成本直答 |
-| Manual Index | 手册/SOP 补充 | 流程型、条件型、规则型问题 |
-| Graph Index，V0.3 | 关系增强 | 多实体、多条件、跨文档关联问题 |
-
-重排序策略：
-
-```text
-简单问题
-  -> Vector Top3 / FAQ Top1
-  -> 不启用重排序
-
-中等问题
-  -> Vector Top10 + BM25 Top10 + FAQ Top5
-  -> 轻量 cross-encoder 或特征打分
-  -> Top3 进入生成
-
-复杂问题
-  -> Vector Top30 + BM25 Top30 + Manual Top10
-  -> LambdaMART / Learning-to-Rank 特征统一打分
-  -> Top3-5 进入生成
-```
-
-设计考虑：
-
-- 所有问题都重排会拖慢响应，客服场景更需要稳定延迟，所以按意图、问题长度、实体数量、风险等级和首轮召回分数做策略路由。
-- V0.2 先实现可解释的轻量重排序：BM25 分、向量相似度、FAQ 命中、文档新鲜度、权限匹配、source priority、chunk/parent 匹配度。
-- LambdaMART 适合 V0.3 做成训练化重排：先用坐席采纳、用户追问、人工改写、答案是否解决作为弱标签积累训练数据，再训练轻量排序模型。
-- 如果 V0.2 没有足够标注数据，直接上 LambdaMART 只是形式完整，实际效果未必稳定。
-
-#### 5.4 幻觉控制与评估指标
-
-V0.2 不只做“能回答”，还要做“回答是否有证据、是否可靠、是否能被运营改进”。
-
-核心指标：
-
-| 指标 | 含义 | 用途 |
-| --- | --- | --- |
-| Context Recall | 标准答案所需证据是否被召回 | 判断检索链路是否漏召回 |
-| Faithfulness | 回答是否被上下文支持 | 判断是否存在幻觉 |
-| Answer Relevance | 回答是否真正回应用户问题 | 判断生成是否跑题 |
-| Citation Coverage | 关键结论是否带引用 | 判断答案是否可追溯 |
-| First Contact Resolution | 首轮是否解决问题 | 衡量客服业务效果 |
-| Handoff Rate | 转人工比例 | 衡量自动化边界 |
-| Rewrite Accept Rate | 改写通过语义校验比例 | 监控 query rewrite 是否制造噪音 |
-| Retrieval Latency | 检索耗时 | 控制坐席台响应体验 |
-| Rerank Latency | 重排序耗时 | 判断策略路由是否合理 |
-
-设计考虑：
-
-- Context Recall 低说明问题通常在检索和切分，不应该先调 prompt。
-- Faithfulness 低说明生成器越过证据说话，需要收紧提示词、引用校验或触发转人工。
-- 首轮解决率比单次回答相似度更贴近客服业务，因为客服系统最终看的是问题是否被解决。
-- 评估数据来自三部分：人工标注集、历史 FAQ、坐席采纳/修改/转人工行为。
-- 线上链路需要记录 trace：query、rewrite、retrieved chunks、rerank score、final context、answer、citations、latency、fallback reason。
-
-## API 初版
-
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| `POST` | `/api/tickets` | 创建工单 |
-| `GET` | `/api/tickets` | 查询工单队列 |
-| `GET` | `/api/tickets/{id}` | 查询工单详情 |
-| `POST` | `/api/tickets/{id}/claim` | 领取工单，包含并发控制 |
-| `POST` | `/api/tickets/{id}/transitions` | 状态流转 |
-| `GET` | `/api/tickets/{id}/events` | 查询操作日志 |
-| `GET` | `/api/tickets/{id}/ai-assists` | 查询 AI Assist |
-| `POST` | `/api/ai-assists` | AI 结果回写 |
-
-## 前端设计方向
-
-前端是客服工作台，不是 AI landing page。
 
 设计原则：
 
-- 首屏直接进入三栏工作区：队列、工单详情、AI Assist。
-- 信息密度偏企业工具，不做大标题、大渐变、大卡片堆叠。
-- 状态、SLA、风险、转人工理由要可扫读。
-- AI 建议必须显示置信度、依据、风险和可操作按钮。
-- 空状态、加载中、AI 失败、权限不足、工单已被领取等边界都要有 UI。
+- MySQL 是工单事实来源，Redis 只做缓存、削峰和短期幂等。
+- 工单创建、领取、状态流转不依赖 LLM。
+- AI Assist 失败不影响坐席继续处理工单。
+- 高风险投诉、赔偿、法律、媒体曝光等场景默认转人工，不自动承诺结果。
 
-## 测试策略
+### LLM 降级链路
 
-Java：
-
-- 状态流转规则单元测试。
-- 并发抢单集成测试：多个线程抢同一工单，只允许一个成功。
-- AI Assist 幂等写入测试。
-- Controller 边界测试：不存在、状态冲突、非法流转。
-
-Python：
-
-- 意图识别测试。
-- 成本路由测试。
-- 高风险转人工测试。
-- RAG 无证据时禁止生成确定答案。
-
-前端：
-
-- 队列、详情、AI Assist 状态展示。
-- 工单已被别人领取时的冲突提示。
-- AI Assist pending / completed / failed 三种状态。
-
-数据集：
-
-- 知识文档数量、租户目录和评估集规模校验。
-- 每条评估问题必须引用存在的 `expected_doc_ids`。
-- 覆盖单文档、多条件、多文档、关键词精确召回、口语化改写、rewrite 漂移、租户隔离和无证据转人工。
-- `/rag/query` 会基于该数据集生成 trace，并评估 Context Recall、Faithfulness、Citation Coverage、Hallucination Risk、Rewrite Accept Rate、Retrieval Latency 和 Tenant Leak Count。
-
-## 本地运行
-
-当前仓库提供 V0.2.0 代码、测试命令和 Docker Compose 部署文件。可以本地三端分别启动，也可以用 Compose 拉起 MySQL、Redis、RabbitMQ、后端、AI 服务和前端。
-
-```bash
-# Java tests, after Maven is available
-cd backend
-mvn test
-
-# Python AI Service tests
-cd ai-service
-python -m pytest
-python eval/build_rag_index.py
-python eval/run_rag_eval.py
-
-# Frontend, after npm install
-cd frontend
-npm install
-npm run build
+```mermaid
+flowchart TD
+  Input["工单事件 / RAG 证据"] --> Template["先生成安全模板"]
+  Template --> Enabled{"LLM_ENABLED=true 且有 API Key?"}
+  Enabled -- 否 --> TemplateOut["template_fallback\n可展示、可发送、可审计"]
+  Enabled -- 是 --> QwenMax["Qwen3-Max"]
+  QwenMax -- 成功 --> LLMOut["llm 输出"]
+  QwenMax -- 超时/限流/5xx --> QwenPlus["备用模型 qwen-plus"]
+  QwenPlus -- 成功 --> LLMOut
+  QwenPlus -- 失败 --> TemplateOut
 ```
 
-三端本地启动：
+默认 `.env.example` 中 `LLM_ENABLED=false`，因此本地运行不会因为缺少 API Key 或网络导致失败。真实接入时只需要在本地 `.env` 中配置：
 
-```bash
-cd backend
-mvn spring-boot:run
-
-cd ai-service
-python -m uvicorn app.main:app --reload
-
-cd frontend
-npm run dev
+```env
+LLM_ENABLED=true
+LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+LLM_MODEL=qwen3-max
+LLM_FALLBACK_MODEL=qwen-plus
+DASHSCOPE_API_KEY=你的本地密钥
 ```
 
-RAG 可追溯查询示例：
+AI Service 返回中会包含：
+
+- `generationMode`: `llm` 或 `template_fallback`
+- `modelName`: 实际使用模型
+- `degradedReason`: `llm_disabled`、`missing_api_key`、`llm_timeout`、`llm_http_error:*` 等
+
+## 前端演示设计
+
+前端不是营销页，而是企业坐席工作台。当前内置 20 条 mock 工单，覆盖：
+
+- 物流延迟与投诉
+- 退款、换货、保修、质检
+- 发票、订阅、跨境税费
+- 高风险赔偿、媒体曝光、主管升级
+- 无证据权益诉求
+- 定制商品、地址变更、丢件、技术故障
+
+前端 mock 不是临时凑数，而是明确作为演示降级层保留：
+
+- 真实 LLM 接通时，右侧 Assist 可被真实结果覆盖。
+- LLM 未接通时，仍展示 mock/degraded 建议。
+- AI 失败状态可点击“重试并使用兜底”。
+- “采纳 Copilot 建议”会把建议回复写入中间回复框。
+- “发送回复”会追加到当前工单会话区，用于展示坐席操作闭环。
+- 搜索、All/Mine/Escalated 过滤、抢单冲突模拟、状态流转均可交互。
+
+## RAG 知识库能力
+
+当前 RAG 已实现本地可测骨架：
+
+- Markdown 文档解析与 frontmatter 元数据读取。
+- 按标题、段落、句子边界进行动态切块。
+- token budget 与 overlap 控制，保留上下文窗口。
+- parent-child chunk 元数据。
+- Query Rewrite 候选生成。
+- rewrite 语义相似度和关键词保留率校验，拦截 semantic drift。
+- 向量检索 + BM25 混合召回。
+- qwen3-rerank Provider 可选接入。
+- qwen3-rerank 不可用时降级到本地轻量重排序。
+- citations、fallback/handoff、tenant leak count、context recall、faithfulness、citation coverage 等 trace 指标。
+
+RAG 查询链路：
+
+```mermaid
+flowchart TD
+  Q["用户问题"] --> Intent["意图识别"]
+  Intent --> Rewrite["Query Rewrite"]
+  Rewrite --> Guard["语义校验 / drift 拦截"]
+  Guard --> Hybrid["Vector + BM25 混合召回"]
+  Hybrid --> Rerank{"qwen3-rerank 可用?"}
+  Rerank -- 是 --> ModelRank["模型重排序"]
+  Rerank -- 否 --> LocalRank["本地轻量重排序"]
+  ModelRank --> Evidence["证据组装 / citations"]
+  LocalRank --> Evidence
+  Evidence --> Risk{"证据充分且低风险?"}
+  Risk -- 是 --> Answer["LLM 或模板生成"]
+  Risk -- 否 --> Handoff["fallback / 转人工"]
+  Answer --> Trace["返回 answer + trace + metrics"]
+  Handoff --> Trace
+```
+
+qwen3-rerank 配置：
+
+```env
+RERANK_ENABLED=true
+RERANK_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+RERANK_MODEL=qwen3-rerank
+DASHSCOPE_API_KEY=你的本地密钥
+```
+
+如果 rerank 失败，接口 trace 会显示：
+
+- `rerank_mode=lightweight`
+- `rerank_degraded_reason=missing_api_key / rerank_timeout / rerank_http_error / rerank_invalid_response`
+
+## 数据清洗与 ingestion 边界
+
+企业项目真实场景通常会把数据治理拆成单独链路：
+
+- 多源采集：官网、SOP、PDF、飞书、Confluence、CRM、历史工单。
+- 清洗规范化：去噪、去重、表格解析、标题补全、版本识别。
+- 审批发布：归属人、有效期、权限、灰度、回滚。
+- RAG ingestion：切块、embedding、BM25、manifest、索引构建。
+- 在线查询：rewrite、retrieve、rerank、generate、trace、feedback。
+
+本项目保留 ingestion 持久化骨架，但不试图把完整知识治理平台都塞进 MVP。当前重点是展示“数据进入 RAG 前需要结构化治理”的架构意识，以及在线 RAG 查询链路如何可追溯、可评估、可降级。
+
+## V0.3 接口规范与边界行为
+
+本次 V0.3 本地更新补齐了发布前需要讲清楚的接口契约和边界行为：
+
+- AI Service `version=0.3.0`，`/assist` 与 `/rag/query` 已增加 Pydantic 字段约束、未知字段拒绝、长度限制和枚举/范围校验。
+- Spring Boot 工单 DTO 已增加租户格式、字段长度、置信度范围、耗时非负、成本非负等 Bean Validation 约束。
+- Docker Compose 已把 `LLM_*`、`RERANK_*`、`DASHSCOPE_API_KEY` 透传给 AI Service，并增加 AI Service healthcheck。
+- Git 增加 `.gitattributes`，约束文本文件编码和换行，保护中文注释、Mermaid 图和接口文档在 GitHub 上稳定展示。
+- Makefile 增加 `rag-index` 和 `rag-eval`，方便发布前复验 RAG ingestion 与评估报告。
+
+详细文档：
+
+- [V0.3 接口规范](docs/API_CONTRACT_V0.3.md)
+- [V0.3 边界行为说明](docs/EDGE_BEHAVIOR_V0.3.md)
+
+## 技术栈
+
+| 层 | 技术 | 作用 |
+| --- | --- | --- |
+| 前端 | React, Vite, lucide-react | 三栏坐席台、20 工单演示、AI Assist、Evidence Trace |
+| 后端 | Java 17, Spring Boot 3, JPA | 工单状态机、并发抢单、审计、AI Assist 幂等落库 |
+| 数据库 | MySQL, Flyway | 工单事实、事件、AI Assist 结果 |
+| 缓存 | Redis | 热工单、队列计数、AI 事件幂等、抢单削峰 |
+| 消息 | RabbitMQ | ticket.created 与 ai.assist.completed 异步链路 |
+| AI Service | Python, FastAPI | 规则引擎、LLM Provider、RAG Query Engine |
+| RAG | Markdown, JSONL, BM25, hashing embedding | 本地可测检索骨架与评估 |
+| 模型接入 | Qwen3-Max, qwen-plus, qwen3-rerank | 可选真实生成与重排序 |
+
+## 本地启动
+
+三端分别启动：
 
 ```powershell
 cd "G:\MyProjects\ContactFlow AI\ai-service"
-D:\python\python.exe -m uvicorn app.main:app --reload --port 8001
+D:\python\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
-
-Windows PowerShell 验证中文问题时，建议在另一个窗口先切到 UTF-8，并用 `ConvertTo-Json` 生成请求体，避免中文在请求体或控制台显示中被转换成乱码：
 
 ```powershell
-chcp 65001
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
-
-$body = @{
-  tenant = "tenant-a"
-  query = "我签收 8 天了，耳机有质量问题还能退吗？"
-  top_k = 5
-} | ConvertTo-Json -Depth 10
-
-Invoke-RestMethod `
-  -Uri "http://localhost:8001/rag/query" `
-  -Method Post `
-  -ContentType "application/json; charset=utf-8" `
-  -Body $body
+cd "G:\MyProjects\ContactFlow AI\backend"
+& "D:\Apache Maven\apache-maven-3.9.16\bin\mvn.cmd" spring-boot:run
 ```
 
-RAG 批量评估示例输出：
-
-```text
-ContactFlow AI RAG Eval v0.2
-Total Cases: 120
-Context Recall: 0.58
-Expected Doc Hit Rate: 0.72
-Citation Coverage: 1.00
-Faithfulness: 0.68
-Hallucination Risk: 0.33
-Rewrite Accept Rate: 0.89
-Tenant Leak Count: 0
-Avg Retrieval Latency: 3ms
-Handoff Accuracy: 0.88
+```powershell
+cd "G:\MyProjects\ContactFlow AI\frontend"
+npm.cmd run dev -- --host 127.0.0.1 --port 5173
 ```
 
-这组指标用于评估客服 AI Assist 的 RAG 子系统，而不是完整 Agent 评估。它覆盖检索质量、证据引用、回答忠实度、安全边界、租户隔离和转人工策略；完整 Agent 评估还需要继续加入工具调用正确率、工单处理成功率、多步流程完成率、坐席采纳率、平均处理时长和 CSAT 等业务结果指标。
-
-当前批量结果说明系统已经具备可调用、可追溯、可评估的工程闭环，但检索效果不是“优秀”，后续应通过真实向量库、BM25/OpenSearch、父子索引、rerank 和评估闭环继续提升。`Citation Coverage = 1.00`、`Tenant Leak Count = 0`、`Handoff Accuracy = 0.88` 说明证据引用、数据隔离和转人工边界表现较稳；`Context Recall = 0.58`、`Expected Doc Hit Rate = 0.72`、`Faithfulness = 0.68` 和 `Hallucination Risk = 0.33` 说明召回质量、重排序和回答忠实度仍是后续优化项。
-
-手工 demo 覆盖三类面试展示场景：
-
-| 场景 | 预期行为 | 当前结果 |
-| --- | --- | --- |
-| 签收 8 天 + 耳机质量问题 | 命中退款与保修证据，回答保留审核边界 | 命中 `warranty_policy.md`、`refund_policy.md`，`intent=refund` |
-| 起诉 / 赔偿高风险 | 不承诺赔偿，转人工并引用内部 SOP | 命中 `high_risk_complaint_sop.md`、`forbidden_promises.md`，`fallback_reason=high_risk_handoff` |
-| 终身免费会员 | 无证据不编造，进入 fallback | `fallback_reason=no_sufficient_evidence`，只保留转人工/追溯相关内部 SOP 引用 |
-
-后续任务对指标的影响不同：
-
-| 后续任务 | 主要价值 | 是否直接提升 RAG 分数 |
-| --- | --- | --- |
-| 企业知识库 ingestion 持久化、ETL、父子索引入库 | 提升切分稳定性和证据组织质量 | 是 |
-| Query Rewrite 接入真实小模型与 embedding provider | 提升问题改写和语义召回，但需要防漂移 | 是 |
-| 真实向量库 + BM25 / OpenSearch + FAQ/手册多源索引 | 提升召回覆盖和关键词精确命中 | 是 |
-| 更强 rerank、图谱增强检索、LambdaMART | 提升 top-k 质量、多文档推理和 Faithfulness | 是 |
-| RAG 评估入库与运营面板 | 帮助定位失败样本、做版本对比和长期优化 | 间接 |
-| RabbitMQ 消费链路、失败重试、死信队列、回写事件 | 提升异步 AI 任务可靠性和工程可信度 | 否，主要提升企业后端含金量 |
-| Redis 热工单、队列计数、幂等、抢单削峰 | 提升性能、幂等和并发工程能力 | 否，主要提升企业后端含金量 |
-| Kafka 事件流扩展 | 支持审计、质检、统计和多消费者订阅 | 否，适合 V0.3 |
-
-Docker Compose：
-
-```bash
-cp .env.example .env
-docker compose up --build
-```
-
-默认端口：
+常用链接：
 
 | 服务 | 地址 |
 | --- | --- |
-| Frontend | <http://localhost:5173> |
-| Backend OpenAPI | <http://localhost:8080/docs> |
-| AI Service health | <http://localhost:8000/health> |
-| RabbitMQ Management | <http://localhost:15672> |
+| 前端坐席台 | <http://127.0.0.1:5173/> |
+| 后端 Swagger | <http://127.0.0.1:8080/docs> |
+| 后端工单 API | <http://127.0.0.1:8080/api/tickets?tenantId=tenant-a> |
+| AI Service health | <http://127.0.0.1:8000/health> |
+| AI Service docs | <http://127.0.0.1:8000/docs> |
 
-## 当前实现状态
+## 测试命令
 
-- [x] 中文项目架构文档。
+统一复验：
+
+```powershell
+make test
+make rag-index
+make rag-eval
+```
+
+```powershell
+cd "G:\MyProjects\ContactFlow AI\ai-service"
+D:\python\python.exe -m pytest
+```
+
+```powershell
+cd "G:\MyProjects\ContactFlow AI\backend"
+& "D:\Apache Maven\apache-maven-3.9.16\bin\mvn.cmd" test
+```
+
+```powershell
+cd "G:\MyProjects\ContactFlow AI\frontend"
+npm.cmd run build
+```
+
+RAG 索引与评估：
+
+```powershell
+cd "G:\MyProjects\ContactFlow AI\ai-service"
+D:\python\python.exe eval\build_rag_index.py
+D:\python\python.exe eval\run_rag_eval.py
+```
+
+
+## 当前完成度
+
 - [x] Spring Boot 工单领域模型、状态机、并发抢单设计。
 - [x] Flyway MySQL 表结构。
 - [x] Java 测试用例。
 - [x] Python AI Service 规则引擎和测试。
-- [x] React 三栏坐席台原型。
-- [x] V0.2 初始基础设施骨架：RabbitMQ/Redis 依赖、条件化配置、fallback publisher/cache、Docker Compose 环境变量。
-- [x] V0.2 RAG 本地可测骨架：NLP 动态切分、Query Rewrite 语义校验、向量/BM25 混合召回、轻量重排、评估指标。
-- [x] V0.2 专业合成企业客服知识库：24 篇 Markdown 文档、120 条 JSONL 评估问题、3 个租户、覆盖证据召回和转人工边界。
-- [x] V0.2 `/rag/query` 可追溯检索链路：demo KB ingestion、parent-child chunks、query rewrite trace、hybrid retrieval、rerank、citations、fallback/handoff、metrics。
-- [x] V0.2 API 级测试和批量评估脚本：覆盖有证据、无证据、高风险、租户隔离、rewrite drift、混合检索、重排序和指标返回。
-- [x] V0.2 前端 RAG Evidence Trace 面板：展示三类手工 demo、intent、fallback、metrics、citations 和 trace steps。
-- [x] V0.2 RabbitMQ 回写链路：`ai.assist.completed` 完成队列、失败重试、死信队列、AI Assist 幂等落库和审计事件。
-- [x] V0.2 Redis AI 事件幂等标记：`ai_event:{sourceEventId}` 短期去重，数据库唯一键仍是最终事实来源。
-- [x] V0.2 Redis 业务缓存深化：热工单、队列计数、AI Assist 汇总缓存、可选抢单削峰锁，MySQL 条件更新仍是抢单最终事实来源。
-- [ ] V0.3 Kafka 事件流扩展：面向统计、审计、质检和多消费者订阅。
-- [x] V0.2 企业知识库 ingestion 持久化：Markdown 文档解析、ETL 元数据、父子 chunk 索引 JSONL 与 manifest 落盘。
-- [x] V0.2 RAG 评估报告落盘：120 cases 汇总指标、case 级定位数据和 `latest_report.json`。
-- [ ] V0.3 Query Rewrite 接入真实小模型与 embedding provider。
-- [ ] V0.3 Hybrid Retrieval 接入真实向量库、BM25 索引库和 FAQ/手册多源索引。
-- [ ] V0.3 RAG 评估入库与运营面板：首轮解决率、坐席采纳率、问题沉淀、版本对比和长期趋势。
-- [ ] V0.3 图谱增强检索与 LambdaMART 训练化重排序。
+- [x] React 三栏坐席台。
+- [x] 前端 20 条多类型演示工单。
+- [x] 前端 mock 作为 LLM 不可用时的演示降级层。
+- [x] “采纳 Copilot 建议”和“发送回复”本地交互。
+- [x] RabbitMQ/Redis 条件化配置与 fallback。
+- [x] RAG 动态切块、Query Rewrite、语义校验、混合召回、轻量重排序、评估指标。
+- [x] qwen3-rerank 可选 Provider 与本地轻量 rerank fallback。
+- [x] Qwen3-Max / qwen-plus 可选 LLM Provider 与模板 fallback。
+- [x] `/rag/query` 可追溯检索链路。
+- [x] RAG 评估报告落盘。
+- [ ] 真实向量库接入。
+- [ ] 真实线上知识库治理后台。
+- [ ] 前端接后端实时工单列表和真实 AI Assist 拉取。
+- [ ] Kafka 事件流扩展。
+- [ ] RAG 评估入库与运营面板。

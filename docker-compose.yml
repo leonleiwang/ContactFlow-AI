@@ -1,3 +1,4 @@
+# 展示说明：V0.3 本地多端编排，默认启动 MySQL、Redis、RabbitMQ、Backend、AI Service 和 Frontend；LLM/rerank 默认为可关闭增强能力。
 services:
   mysql:
     image: mysql:8.4
@@ -77,8 +78,27 @@ services:
     build:
       context: ./ai-service
     container_name: contactflow-ai-service
+    environment:
+      LLM_ENABLED: ${LLM_ENABLED:-false}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      LLM_MODEL: ${LLM_MODEL:-qwen3-max}
+      LLM_FALLBACK_MODEL: ${LLM_FALLBACK_MODEL:-qwen-plus}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-8}
+      LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-1}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      RERANK_ENABLED: ${RERANK_ENABLED:-false}
+      RERANK_BASE_URL: ${RERANK_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      RERANK_MODEL: ${RERANK_MODEL:-qwen3-rerank}
+      RERANK_TIMEOUT_SECONDS: ${RERANK_TIMEOUT_SECONDS:-3}
+      RERANK_API_KEY: ${RERANK_API_KEY:-}
     ports:
       - "${AI_SERVICE_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   frontend:
     build:

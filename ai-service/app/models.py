@@ -1,4 +1,4 @@
-# 展示说明：AI Service 领域模型集中定义意图、路由、SLA 风险、工单事件、知识 chunk 和 AI Assist 返回结果。
+# 展示说明：AI Service 领域模型集中定义意图、路由、SLA 风险、工单事件、知识 chunk 和 V0.3 AI Assist 返回结果。
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -60,7 +60,7 @@ class KnowledgeChunk:
 
 
 @dataclass(frozen=True)
-# AI Assist 输出：封装摘要、建议回复、转人工、引用、耗时和成本，供后端幂等落库。
+# AI Assist 输出：封装摘要、建议回复、转人工、引用、耗时、成本和模型降级状态，供后端幂等落库。
 class AssistResult:
     ticket_id: str
     source_event_id: str
@@ -75,3 +75,6 @@ class AssistResult:
     citations: list[dict[str, Any]]
     latency_ms: int
     estimated_cost_usd: float
+    generation_mode: str = "template"
+    model_name: str | None = None
+    degraded_reason: str | None = None

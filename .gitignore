@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+.env.local
 
 # Java / Maven
 target/
@@ -29,3 +30,6 @@ Thumbs.db
 
 # Logs
 *.log
+run-logs/
+tmp-rag-*.json
+tmp-rag-*.jsonl

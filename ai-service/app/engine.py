@@ -5,13 +5,15 @@ import re
 import time
 
 from app.knowledge_base import InMemoryKnowledgeBase, RetrievalHit
+from app.llm_provider import LlmProvider
 from app.models import AssistResult, Intent, Route, SlaRisk, TicketEvent
 
 
 class AssistEngine:
     # 初始化坐席辅助引擎：默认使用内存知识库，也允许测试注入替代知识源。
-    def __init__(self, knowledge_base: InMemoryKnowledgeBase | None = None) -> None:
+    def __init__(self, knowledge_base: InMemoryKnowledgeBase | None = None, llm_provider: LlmProvider | None = None) -> None:
         self.knowledge_base = knowledge_base or InMemoryKnowledgeBase()
+        self.llm_provider = llm_provider or LlmProvider()
 
     def analyze(self, event: TicketEvent) -> AssistResult:
         # 主分析流程：从工单事件生成完整 AI Assist 结果，并记录引用、耗时和成本估算。
@@ -21,27 +23,41 @@ class AssistEngine:
         handoff_reason = self.evaluate_handoff(text, intent, event.priority)
         sla_risk = self.evaluate_sla_risk(text, event.priority)
         route, hits = self.route(event, intent, handoff_reason)
-        summary = self.summarize(event, intent)
-        reply, confidence = self.suggest_reply(event, intent, route, hits, handoff_reason)
+        template_summary = self.summarize(event, intent)
+        template_reply, confidence = self.suggest_reply(event, intent, route, hits, handoff_reason)
+        citations = [
+            {"chunkId": hit.chunk.chunk_id, "title": hit.chunk.title, "score": round(hit.score, 4)}
+            for hit in hits
+        ]
+        generation = self.llm_provider.generate(
+            ticket_title=event.title,
+            customer_message=event.customer_message,
+            intent=intent.value,
+            route=route.value,
+            sla_risk=sla_risk.value,
+            template_summary=template_summary,
+            template_reply=template_reply,
+            citations=citations,
+        )
         latency_ms = int((time.perf_counter() - started) * 1000)
 
         return AssistResult(
             ticket_id=event.ticket_id,
             source_event_id=event.event_id,
             intent=intent,
-            summary=summary,
-            suggested_reply=reply,
+            summary=generation.summary,
+            suggested_reply=generation.suggested_reply,
             handoff_recommended=handoff_reason is not None,
             handoff_reason=handoff_reason,
             sla_risk=sla_risk,
             confidence=confidence,
             route=route,
-            citations=[
-                {"chunkId": hit.chunk.chunk_id, "title": hit.chunk.title, "score": round(hit.score, 4)}
-                for hit in hits
-            ],
+            citations=citations,
             latency_ms=latency_ms,
-            estimated_cost_usd=0.0 if route == Route.RULE_ONLY else 0.0002,
+            estimated_cost_usd=generation.estimated_cost_usd,
+            generation_mode=generation.mode,
+            model_name=generation.model_name,
+            degraded_reason=generation.degraded_reason,
         )
 
     def detect_intent(self, text: str) -> Intent:

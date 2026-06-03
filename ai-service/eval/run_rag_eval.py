@@ -1,6 +1,7 @@
-# 展示说明：V0.2 RAG 批量评估工具，执行 120 条 JSONL case 并落盘汇总指标与 case 级定位数据。
+# 展示说明：V0.3 RAG 批量评估工具，执行 120 条 JSONL case 并落盘汇总指标与 case 级定位数据，支持临时报告输出。
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -13,17 +14,17 @@ if str(ROOT) not in sys.path:
 from app.rag.query_engine import RagQueryEngine, load_eval_cases  # noqa: E402
 
 
+# 安全平均值工具：评估列表为空时返回 0，避免本地演示脚本异常中断。
 def average(values: list[float]) -> float:
-    # 安全平均值工具：评估列表为空时返回 0，避免本地演示脚本异常中断。
     return sum(values) / len(values) if values else 0.0
 
 
+# 批量评估主流程：逐条调用 /rag/query 同款引擎，聚合召回、忠实度、引用、租户隔离和转人工准确率。
 def run_eval(
     dataset_root: Path | None = None,
     report_path: Path | None = None,
     include_case_results: bool = True,
 ) -> dict[str, Any]:
-    # 批量评估主流程：逐条调用 /rag/query 同款引擎，聚合召回、忠实度、引用、租户隔离和转人工准确率。
     engine = RagQueryEngine(dataset_root=dataset_root)
     cases = load_eval_cases(dataset_root=dataset_root)
 
@@ -86,7 +87,7 @@ def run_eval(
         "handoff_accuracy": round(handoff_matches / len(cases), 4) if cases else 0.0,
     }
     report = {
-        "version": "0.2.0",
+        "version": "0.3.0",
         "dataset": "contactflow_demo_kb_v0.2",
         "summary": summary,
         "cases": case_results,
@@ -102,12 +103,26 @@ def run_eval(
     return report
 
 
+# 命令行参数解析：允许把评估报告写到临时路径，避免发布前复验污染已提交的 latest_report.json。
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run ContactFlow AI RAG evaluation cases.")
+    parser.add_argument("--dataset-root", type=Path, default=None)
+    parser.add_argument("--report-output", type=Path, default=None)
+    parser.add_argument("--no-case-results", action="store_true")
+    return parser.parse_args()
+
+
+# 命令行入口：打印核心评估指标，并默认更新 latest_report.json。
 def main() -> None:
-    # 命令行入口：打印核心评估指标，并默认更新 latest_report.json。
-    report = run_eval()
+    args = parse_args()
+    report = run_eval(
+        dataset_root=args.dataset_root,
+        report_path=args.report_output,
+        include_case_results=not args.no_case_results,
+    )
     summary = report["summary"]
 
-    print("ContactFlow AI RAG Eval v0.2")
+    print("ContactFlow AI RAG Eval v0.3")
     print(f"Total Cases: {summary['total_cases']}")
     print(f"Context Recall: {summary['context_recall']:.2f}")
     print(f"Expected Doc Hit Rate: {summary['expected_doc_hit_rate']:.2f}")

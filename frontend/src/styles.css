@@ -1,3 +1,4 @@
+/* 展示说明：V0.3 坐席台样式约束三栏高度、工单列表内部滚动、Assist 状态面板和 Copilot 采纳按钮，保证 20 条工单演示不撑爆页面。 */
 :root {
   color-scheme: light;
   --bg: #eef2f6;
@@ -28,9 +29,16 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
   min-width: 0;
   margin: 0;
+  overflow: hidden;
   background:
     radial-gradient(circle at 18% 10%, rgba(71, 126, 255, 0.24), transparent 30%),
     radial-gradient(circle at 82% 18%, rgba(47, 184, 139, 0.2), transparent 28%),
@@ -62,8 +70,10 @@ button:disabled {
   display: grid;
   grid-template-columns: 220px 330px minmax(440px, 1fr) 390px;
   gap: 14px;
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
   padding: 14px;
+  overflow: hidden;
 }
 
 .nav-rail,
@@ -88,6 +98,7 @@ button:disabled {
 .workspace-pane,
 .copilot-pane {
   min-width: 0;
+  min-height: 0;
   border-radius: var(--radius);
 }
 
@@ -214,6 +225,10 @@ button:disabled {
   flex-direction: column;
 }
 
+.inbox-pane {
+  gap: 0;
+}
+
 .search-box {
   display: flex;
   align-items: center;
@@ -269,9 +284,34 @@ button:disabled {
 
 .ticket-list {
   display: grid;
+  flex: 1 1 auto;
   gap: 9px;
+  min-height: 0;
   overflow-y: auto;
-  padding-right: 2px;
+  overscroll-behavior: contain;
+  padding-right: 5px;
+  scrollbar-gutter: stable;
+}
+
+.ticket-list::-webkit-scrollbar,
+.copilot-pane::-webkit-scrollbar,
+.workspace-pane::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ticket-list::-webkit-scrollbar-track,
+.copilot-pane::-webkit-scrollbar-track,
+.workspace-pane::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ticket-list::-webkit-scrollbar-thumb,
+.copilot-pane::-webkit-scrollbar-thumb,
+.workspace-pane::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(101, 115, 134, 0.28);
+  background-clip: padding-box;
 }
 
 .ticket-row {
@@ -364,10 +404,18 @@ button:disabled {
   color: var(--red);
 }
 
+.status-cancelled,
+.status-closed {
+  background: rgba(101, 115, 134, 0.14);
+  color: var(--muted);
+}
+
 .workspace-pane {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .workspace-topbar {
@@ -441,6 +489,7 @@ h2 {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 14px;
+  min-height: 0;
 }
 
 .conversation-panel,
@@ -492,6 +541,104 @@ h2 {
   padding: 0 12px;
 }
 
+.reply-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 6px;
+  border: 1px solid rgba(113, 128, 150, 0.18);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.46);
+}
+
+.reply-tools .adopt-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid rgba(38, 104, 217, 0.22);
+  border-radius: 10px;
+  background: rgba(38, 104, 217, 0.08);
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 760;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.reply-tools .adopt-action:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(38, 104, 217, 0.38);
+  background: rgba(38, 104, 217, 0.13);
+}
+
+.reply-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.reply-meta-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.model-chip {
+  max-width: 150px;
+  overflow: hidden;
+  border: 1px solid rgba(101, 115, 134, 0.18);
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.64);
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-chip.is-live {
+  border-color: rgba(31, 138, 91, 0.22);
+  color: var(--green);
+  background: var(--green-soft);
+}
+
+.model-chip.is-fallback {
+  border-color: rgba(173, 106, 0, 0.22);
+  color: var(--amber);
+  background: var(--amber-soft);
+}
+
+.sent-replies {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.sent-reply {
+  padding: 10px 12px;
+  border: 1px solid rgba(31, 138, 91, 0.2);
+  border-radius: 14px;
+  background: var(--green-soft);
+}
+
+.sent-reply span {
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.sent-reply p {
+  margin: 6px 0 0;
+  color: #27313d;
+  line-height: 1.55;
+}
+
 .status-strip {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -520,6 +667,8 @@ h2 {
 .copilot-pane {
   gap: 12px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .copilot-tabs {
@@ -541,6 +690,23 @@ h2 {
   border: 1px solid rgba(38, 104, 217, 0.2);
   border-radius: var(--radius);
   background: linear-gradient(135deg, rgba(38, 104, 217, 0.14), rgba(31, 138, 91, 0.1));
+}
+
+.assist-hero.is-degraded {
+  border-color: rgba(173, 106, 0, 0.24);
+  background: linear-gradient(135deg, rgba(173, 106, 0, 0.13), rgba(38, 104, 217, 0.08));
+}
+
+.degrade-banner {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 10px;
+  border: 1px solid rgba(173, 106, 0, 0.22);
+  border-radius: 14px;
+  background: var(--amber-soft);
+  color: var(--amber);
+  font-size: 12px;
 }
 
 .assist-kv,
@@ -708,17 +874,26 @@ h2 {
 @media (max-width: 1240px) {
   .app-shell {
     grid-template-columns: 200px minmax(300px, 0.9fr) minmax(440px, 1.3fr);
+    overflow-y: auto;
   }
 
   .copilot-pane {
     grid-column: 2 / -1;
-    min-height: 420px;
+    min-height: 0;
+    max-height: 420px;
   }
 }
 
 @media (max-width: 900px) {
+  body {
+    overflow: auto;
+  }
+
   .app-shell {
     grid-template-columns: 1fr;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
   }
 
   .nav-rail,
@@ -726,6 +901,7 @@ h2 {
   .workspace-pane,
   .copilot-pane {
     min-height: auto;
+    max-height: none;
   }
 
   .rail-menu,

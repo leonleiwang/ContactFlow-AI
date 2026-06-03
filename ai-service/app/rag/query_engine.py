@@ -1,4 +1,4 @@
-# 展示说明：V0.2 RAG 编排核心，把 Markdown 知识库、Query Rewrite、混合召回、重排序、引用、fallback 和评估指标串成一条可追溯链路。
+# 展示说明：V0.3 RAG 编排核心，把 Markdown 知识库、Query Rewrite、混合召回、qwen3-rerank 可选增强、引用、fallback 和评估指标串成一条可追溯链路。
 from __future__ import annotations
 
 import json
@@ -12,6 +12,7 @@ from app.models import Intent, KnowledgeChunk
 from app.rag.chunker import DynamicChunker
 from app.rag.embedding import HashingEmbeddingModel, tokenize
 from app.rag.evaluation import RagEvaluator
+from app.rag.rerank_provider import RerankProvider
 from app.rag.retrieval import HybridHit, HybridRetriever, RetrievalStrategy
 from app.rag.rewrite import QueryRewriter
 
@@ -37,8 +38,8 @@ UNSUPPORTED_ENTITLEMENT_TERMS = {
 
 
 class RagQueryEngine:
-    # 初始化完整检索运行时：加载 demo KB、构建轻量 embedding、rewrite、chunker、retriever 和 evaluator。
-    def __init__(self, dataset_root: Path | None = None) -> None:
+    # 初始化完整检索运行时：加载 demo KB，构建轻量 embedding、rewrite、chunker、retriever、evaluator 和可降级 rerank provider。
+    def __init__(self, dataset_root: Path | None = None, rerank_provider: RerankProvider | None = None) -> None:
         self.dataset_root = dataset_root or self._default_dataset_root()
         self.embedding_model = HashingEmbeddingModel()
         self.rewriter = QueryRewriter(self.embedding_model)
@@ -46,6 +47,7 @@ class RagQueryEngine:
         self.chunker = DynamicChunker(max_tokens=180, overlap_tokens=80)
         self.chunks = self._load_chunks()
         self.retriever = HybridRetriever(self.chunks, self.embedding_model, self.rewriter)
+        self.rerank_provider = rerank_provider or RerankProvider()
 
     def query(
         self,
@@ -56,7 +58,7 @@ class RagQueryEngine:
         expected_doc_ids: list[str] | None = None,
         expected_evidence_keywords: list[str] | None = None,
     ) -> dict[str, Any]:
-        # 主查询流程：对单次问题产出答案、引用证据、转人工判断，以及可用于前端展示和批量评估的 trace。
+        # 主查询流程：对单次问题产出答案、引用证据、转人工判断、rerank 降级状态，以及可用于前端展示和批量评估的 trace。
         started = time.perf_counter()
         normalized_top_k = max(1, min(top_k, 10))
         intent = self._detect_intent(query)
@@ -66,7 +68,9 @@ class RagQueryEngine:
         rejected_rewrites = [asdict(candidate) for candidate in rewrite_candidates if not candidate.accepted]
 
         hits = self.retriever.retrieve(query, tenant_id=tenant, intent=intent, strategy=strategy)
-        reranked_hits = self._rerank(query, hits, intent)[:normalized_top_k]
+        lightweight_hits = self._rerank(query, hits, intent)
+        rerank_result = self.rerank_provider.rerank(query, lightweight_hits)
+        reranked_hits = rerank_result.hits[:normalized_top_k]
         retrieval_latency_ms = int((time.perf_counter() - started) * 1000)
 
         citations = self._build_citations(reranked_hits)
@@ -119,6 +123,9 @@ class RagQueryEngine:
                 "accepted_rewrites": accepted_rewrites,
                 "rejected_rewrites": rejected_rewrites,
                 "retrieval_strategy": strategy.value,
+                "rerank_mode": rerank_result.mode,
+                "rerank_model": rerank_result.model_name,
+                "rerank_degraded_reason": rerank_result.degraded_reason,
                 "retrieved_chunks": [self._hit_payload(hit) for hit in hits],
                 "reranked_chunks": [self._hit_payload(hit) for hit in reranked_hits],
                 "metrics": metrics_payload,
