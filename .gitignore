@@ -3,6 +3,8 @@
 .env.*
 !.env.example
 .env.local
+LOCAL_DEMO_COMMANDS.md
+*.local.ps1
 
 # Java / Maven
 target/

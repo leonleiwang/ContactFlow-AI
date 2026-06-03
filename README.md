@@ -213,18 +213,18 @@ DASHSCOPE_API_KEY=你的本地密钥
 三端分别启动：
 
 ```powershell
-cd "G:\MyProjects\ContactFlow AI\ai-service"
-D:\python\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+cd ./ai-service
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 ```powershell
-cd "G:\MyProjects\ContactFlow AI\backend"
-& "D:\Apache Maven\apache-maven-3.9.16\bin\mvn.cmd" spring-boot:run
+cd ./backend
+mvn spring-boot:run
 ```
 
 ```powershell
-cd "G:\MyProjects\ContactFlow AI\frontend"
-npm.cmd run dev -- --host 127.0.0.1 --port 5173
+cd ./frontend
+npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
 常用链接：
@@ -248,26 +248,26 @@ make rag-eval
 ```
 
 ```powershell
-cd "G:\MyProjects\ContactFlow AI\ai-service"
-D:\python\python.exe -m pytest
+cd ./ai-service
+python -m pytest
 ```
 
 ```powershell
-cd "G:\MyProjects\ContactFlow AI\backend"
-& "D:\Apache Maven\apache-maven-3.9.16\bin\mvn.cmd" test
+cd ./backend
+mvn test
 ```
 
 ```powershell
-cd "G:\MyProjects\ContactFlow AI\frontend"
-npm.cmd run build
+cd ./frontend
+npm run build
 ```
 
 RAG 索引与评估：
 
 ```powershell
-cd "G:\MyProjects\ContactFlow AI\ai-service"
-D:\python\python.exe eval\build_rag_index.py
-D:\python\python.exe eval\run_rag_eval.py
+cd ./ai-service
+python ./eval/build_rag_index.py
+python ./eval/run_rag_eval.py
 ```
 
 

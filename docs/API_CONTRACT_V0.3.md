@@ -181,16 +181,16 @@
 发布 `v0.3.0` 前需要至少通过：
 
 ```powershell
-cd "G:\MyProjects\ContactFlow AI\frontend"
-npm.cmd run build
+cd ./frontend
+npm run build
 ```
 
 ```powershell
-cd "G:\MyProjects\ContactFlow AI\ai-service"
-D:\python\python.exe -m pytest -p no:cacheprovider
+cd ./ai-service
+python -m pytest -p no:cacheprovider
 ```
 
 ```powershell
-cd "G:\MyProjects\ContactFlow AI\backend"
-& "D:\Apache Maven\apache-maven-3.9.16\bin\mvn.cmd" test
+cd ./backend
+mvn test
 ```
